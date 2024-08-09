@@ -44,6 +44,8 @@ app.use("/api/pdfEdit", PdfRoutes);
 
 app.use("/api/",textRoutes)
 
+app.use("/api/",textRoutes)
+
 app.listen(8000, () => {
     console.log("listening")
 })
