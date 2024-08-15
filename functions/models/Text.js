@@ -5,6 +5,9 @@ const TextSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Event",
   },
+  video:{
+    type:String,
+  },
   texts: [
     {
       backgroundColor: String,
@@ -28,8 +31,7 @@ const TextSchema = new mongoose.Schema({
       startTime: mongoose.Schema.Types.Decimal128,
       text: String,
       transition: {
-        options: Object,
-        type: String,
+          type:Object,
       },
       eventId: {
         type: mongoose.Schema.Types.ObjectId,

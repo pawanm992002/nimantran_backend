@@ -22,13 +22,30 @@ clientPersonal.on("ready", () => {
 
 clientPersonal.initialize();
 
-const generateQR = (req, res) => {
-  if (qrCodeData) {
-    res.status(200).send({ qrCode: qrCodeData });
-  } else {
-    res.status(200).send({ qrCode: null });
+const generateQR = async (req, res) => {
+  try {
+    const qrCode = await new Promise((resolve, reject) => {
+      if (qrCodeData) {
+        resolve(qrCodeData);
+      } else {
+        clientPersonal.on("qr", (qr) => {
+          qrcode.toDataURL(qr, (err, url) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(url);
+            }
+          });
+        });
+      }
+    });
+
+    res.status(200).send({ qrCode });
+  } catch (err) {
+    res.status(500).send({ error: "Failed to generate QR code." });
   }
 };
+
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
   try {

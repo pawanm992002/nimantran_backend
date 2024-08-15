@@ -1,14 +1,41 @@
 
 const mongoose = require("mongoose");
 const { Text } = require("../models/Text");
+const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
 
+const uploadFileToFirebase = async (
+    fileBuffer,
+    filename,
+    eventId,
+    isSample,
+    i
+  ) => {
+    try {
+      let storageRef;
+      if (isSample === "true") {
+        storageRef = ref(
+          firebaseStorage,
+          `sample/sample${i}${i === "zip" ? ".zip" : ".png"}`
+        );
+      } else {
+        storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
+      }
+      const snapshot = await uploadBytes(storageRef, fileBuffer);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
+    } catch (error) {
+      console.error("Error uploading file to Firebase:", error);
+      throw error;
+    }
+  };
 
 const saveText = async (req, res) => {
     const {
-        eventId,
         texts
     } = req.body;
 
+    console.log("fffff", texts)
+    const { eventId } = req.query;
     if (!texts) return res.status(400).json({ message: "Text not found" });
     if (!eventId) return res.status(400).json({ message: "Event ID not found"});
 
