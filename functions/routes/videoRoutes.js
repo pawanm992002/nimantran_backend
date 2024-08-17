@@ -345,13 +345,21 @@ router.post(
   async (req, res) => {
     let inputPath;
     try {
-      const { textProperty, scalingFont, scalingW, scalingH, isSample, videoDuration } =
-        req.body;
+      const {
+        textProperty,
+        scalingFont,
+        scalingW,
+        scalingH,
+        isSample,
+        videoDuration,
+      } = req.body;
 
       const eventId = req?.query?.eventId;
-
       let { guestNames } = req.body;
-
+      const amountSpend = 1 * guestNames.length;
+      const user = await User.findById(req.user._id);
+      if (!user) throw new Error("User not found");
+      
       if (isSample === "true") {
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
@@ -361,6 +369,9 @@ router.post(
           },
         ];
       } else {
+        if (user.credits - amountSpend <= 0)
+          throw new Error("Insufficient Balance");
+        
         guestNames = JSON.parse(guestNames);
       }
 
@@ -435,8 +446,6 @@ router.post(
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
-          const amountSpend = 1 * guestNames.length;
-
           await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
             "video",

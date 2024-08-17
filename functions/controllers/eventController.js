@@ -4,7 +4,6 @@ const { Event } = require("../models/Event");
 const createEvent = async (req, res) => {
   try {
     const { eventName, dateOfOrganising, location, editType } = req.body;
-    console.log("..........", editType);
     const { customerId } = req.params;
     // const csvFilePath = req.file?.path;
     // const guests = csvFilePath ? await processCsvFile(csvFilePath) : [];
@@ -20,7 +19,7 @@ const createEvent = async (req, res) => {
     });
 
     if (!customer) {
-      return res.status(404).json({
+      return res.status(400).json({
         message: "User not found",
       });
     }

@@ -8,10 +8,11 @@ const os = require("os");
 const {
   createCanvasWithCenteredText,
   addOrUpdateGuests,
-  uploadFileToFirebase
+  uploadFileToFirebase,
 } = require("../utility/proccessing");
 const createTransaction = require("../utility/creditTransiction");
 const { authenticateJWT } = require("../middleware/auth");
+const { User } = require("../models/User");
 
 const router = express.Router();
 
@@ -29,7 +30,6 @@ const createPdfForGuest = async (
   scalingH,
   scalingW,
   val,
-  i
 ) => {
   try {
     const streams = await Promise.all(
@@ -59,12 +59,7 @@ const createPdfForGuest = async (
       });
     }
 
-    const pdfBytes = await pdfDoc.save();
-    // let outputFile = `processed_pdf_${i}_${Date.now()}_${OUTPUT_FILENAME}`;
-    // const outputPath = path.join(UPLOAD_DIR, outputFile);
-    // await fs.promises.writeFile(outputPath, pdfBytes);
-
-    return pdfBytes;
+    return await pdfDoc.save();
   } catch (error) {
     throw error;
   }
@@ -82,13 +77,21 @@ router.post(
 
       const eventId = req?.query?.eventId;
       let { guestNames } = req.body;
+      const amountSpend = 0.5 * guestNames.length;
+      const user = await User.findById(req.user._id);
+      if (!user) throw new Error("User not found");
 
       if (isSample === "true") {
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
-          { name: "Wolf eschlegelst einhausen berger dorff", mobileNumber: "913647683694" },
+          {
+            name: "Wolf eschlegelst einhausen berger dorff",
+            mobileNumber: "913647683694",
+          },
         ];
       } else {
+        if (user.credits - amountSpend <= 0)
+          throw new Error("Insufficient Balance");
         guestNames = JSON.parse(guestNames);
       }
 
@@ -127,7 +130,6 @@ router.post(
             scalingH,
             scalingW,
             val,
-            i
           );
 
           const filename = `${val?.name}_${val?.mobileNumber}.pdf`;
@@ -137,7 +139,7 @@ router.post(
             buffer,
             filename,
             eventId,
-            isSample,
+            isSample
           );
           val.link = url;
           return url;
@@ -152,13 +154,11 @@ router.post(
           zipBuffer,
           zipFilename,
           eventId,
-          isSample,
+          isSample
         );
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
-          const amountSpend = 0.5 * guestNames.length;
-
           await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
             "pdf",
@@ -176,8 +176,7 @@ router.post(
         });
       });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "PDF processing failed" });
+      res.status(400).json({ error: error.message });
     } finally {
       fs.unlinkSync(inputPath); // Clean up the uploaded PDF file
     }

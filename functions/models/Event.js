@@ -12,7 +12,6 @@ const EventSchema = new mongoose.Schema({
   },
   dateOfOrganising: {
     type: Date,
-    required: true,
   },
   editType: {
     type: String,
@@ -40,7 +39,6 @@ const EventSchema = new mongoose.Schema({
   ],
   location: {
     type: String,
-    required: true,
   },
   active: {
     type: Boolean,

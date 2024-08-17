@@ -44,10 +44,10 @@ app.use("/api/imageEdit", cardRoutes);
 app.use("/api/pdfEdit", PdfRoutes);
 app.use("/api/",textRoutes)
 
-// app.listen(8000, () => {
-//     console.log("listening")
-// })
+app.listen(8000, () => {
+    console.log("listening")
+})
 
-exports.app = functions
-  .runWith({ timeoutSeconds: 540, memory: '8GB' })
-  .https.onRequest(app);
+// exports.app = functions
+//   .runWith({ timeoutSeconds: 540, memory: '8GB' })
+//   .https.onRequest(app);

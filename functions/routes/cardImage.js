@@ -9,7 +9,7 @@ const createTransaction = require("../utility/creditTransiction");
 const {
   addOrUpdateGuests,
   createCanvasWithCenteredText,
-  uploadFileToFirebase
+  uploadFileToFirebase,
 } = require("../utility/proccessing");
 const archiver = require("archiver");
 
@@ -80,13 +80,22 @@ router.post(
 
       const eventId = req?.query?.eventId;
       let { guestNames } = req.body;
+      const amountSpend = 0.25 * guestNames.length;
+      const user = await User.findById(req.user._id);
+      if (!user) throw new Error("User not found");
 
       if (isSample === "true") {
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
-          { name: "Wolf eschlegelst einhausen berger dorff", mobileNumber: "913647683694" },
+          {
+            name: "Wolf eschlegelst einhausen berger dorff",
+            mobileNumber: "913647683694",
+          },
         ];
       } else {
+        if (user.credits - amountSpend <= 0)
+          throw new Error("Insufficient Balance");
+
         guestNames = JSON.parse(guestNames);
       }
 
@@ -139,7 +148,7 @@ router.post(
             buffer,
             filename,
             eventId,
-            isSample,
+            isSample
           );
 
           val.link = url;
@@ -155,13 +164,11 @@ router.post(
           zipBuffer,
           zipFilename,
           eventId,
-          isSample,
+          isSample
         );
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
-          const amountSpend = 0.25 * guestNames.length;
-
           await addOrUpdateGuests(eventId, guestNames, zipUrl);
 
           await createTransaction(
@@ -180,8 +187,7 @@ router.post(
         });
       });
     } catch (error) {
-      console.error(error);
-      res.status(400).json({ error: "Image processing failed" });
+      res.status(400).json({ error: error.message });
     } finally {
       fs.unlinkSync(inputPath);
     }
