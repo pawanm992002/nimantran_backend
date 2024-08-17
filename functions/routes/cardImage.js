@@ -33,19 +33,16 @@ const createImagesForGuest = async (
 ) => {
   try {
     const streams = await Promise.all(
-      texts.map((text) =>
-        createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW)
-      )
+      texts.map(async (text) => {
+        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        return { ...text, stream };
+      })
     );
-
-    streams.forEach((stream, index) => {
-      texts[index].stream = stream;
-    });
 
     let baseImage = sharp(inputPath);
 
     const overlays = await Promise.all(
-      texts.map(async (overlay) => {
+      streams.map(async (overlay) => {
         const { stream, position, size } = overlay;
         const overlayImage = await sharp(stream).toBuffer();
 
@@ -60,7 +57,6 @@ const createImagesForGuest = async (
     baseImage = baseImage.composite(overlays);
 
     const outputBuffer = await baseImage.toBuffer();
-    console.log("Image processing complete.");
 
     return outputBuffer;
   } catch (error) {
@@ -117,7 +113,7 @@ router.post(
           .json({ error: "Please provide the guest list and video." });
       }
 
-      const zipFilename = `processed_file.zip`;
+      const zipFilename = `processed_images.zip`;
       const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
       const output = fs.createWriteStream(zipPath);

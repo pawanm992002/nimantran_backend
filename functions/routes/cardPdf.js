@@ -33,20 +33,18 @@ const createPdfForGuest = async (
 ) => {
   try {
     const streams = await Promise.all(
-      texts.map((text) =>
-        createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW)
-      )
+      texts.map(async (text) => {
+        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        return { ...text, stream };
+      })
     );
-    streams.forEach((stream, index) => {
-      texts[index].stream = stream;
-    });
 
     const inputPdf = await fs.promises.readFile(inputPath);
     const pdfDoc = await PDFDocument.load(inputPdf);
 
     const pages = pdfDoc.getPages();
 
-    for (const text of texts) {
+    await Promise.all(streams.map(async (text) => {
       const img = await pdfDoc.embedPng(text.stream);
       const page = pages[text.page];
 
@@ -57,7 +55,7 @@ const createPdfForGuest = async (
           text.position.y * scalingH -
           text.size.height * scalingH,
       });
-    }
+    }))
 
     return await pdfDoc.save();
   } catch (error) {
@@ -109,7 +107,7 @@ router.post(
           .json({ error: "Please provide the guest list and video." });
       }
 
-      const zipFilename = `processed_pdfs_${Date.now()}.zip`;
+      const zipFilename = `processed_pdfs.zip`;
       const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
       const output = fs.createWriteStream(zipPath);

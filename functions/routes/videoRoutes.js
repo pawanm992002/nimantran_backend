@@ -14,6 +14,7 @@ const {
 } = require("../utility/proccessing");
 const createTransaction = require("../utility/creditTransiction");
 const os = require("os");
+const { User } = require("../models/User");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffmpegPath);
@@ -93,28 +94,24 @@ const createVideoForGuest = (
 ) => {
   return new Promise(async (resolve, reject) => {
     const streams = await Promise.all(
-      texts.map((text) =>
-        createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW)
-      )
+      texts.map(async (text) => {
+        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        return { ...text, stream };
+      })
     );
-
-    // Assign the resolved values to text.stream
-    streams.forEach((stream, index) => {
-      texts[index].stream = stream;
-    });
 
     const outputFilename = `processed_video_${i}_${Date.now()}.mp4`;
     const tempOutputPath = path.join(UPLOAD_DIR, outputFilename);
 
     const processedVideo = ffmpeg().input(inputPath);
 
-    texts.forEach((text) => {
+    streams.forEach((text) => {
       processedVideo.input(text.stream).loop(1); // change the loop time
     });
 
     processedVideo.loop(videoDuration);
 
-    const configuration = texts.flatMap((text, idx) => {
+    const configuration = streams.flatMap((text, idx) => {
       const xPos = parseInt(text.position.x * scalingW);
       const yPos = parseInt(text.position.y * scalingH + 5);
 
@@ -128,7 +125,7 @@ const createVideoForGuest = (
           )})`,
         },
         inputs: idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-        outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+        outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
       };
 
       // Add transition filter if specified
@@ -150,7 +147,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_down":
@@ -169,7 +166,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_right":
@@ -188,7 +185,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_left":
@@ -207,7 +204,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "slide":
@@ -236,7 +233,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "path_cover":
@@ -261,7 +258,7 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "fade":
@@ -292,7 +289,7 @@ const createVideoForGuest = (
                 //     ? ["0:v", `fade${idx + 1}`]
                 //     : [`[tmp${idx}]`, `fade${idx + 1}`],
                 outputs:
-                  idx === texts.length - 1 ? "result" : `[tmp${idx + 1}]`,
+                  idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
               },
             ];
             return fadeConfig;
@@ -393,7 +390,7 @@ router.post(
           .json({ error: "Please provide the guest list and video." });
       }
 
-      const zipFilename = `processed_videos_${Date.now()}.zip`;
+      const zipFilename = `processed_videos.zip`;
       const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
       const output = fs.createWriteStream(zipPath);

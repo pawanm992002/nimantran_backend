@@ -19,7 +19,7 @@ const invitationTrackerSchema = new mongoose.Schema({
       mediaType: {
         type: String,
         required: true,
-        enum: ["image", "pdf", "video"],
+        enum: ["image", "document", "video"],
       },
       status: {
         type: String,

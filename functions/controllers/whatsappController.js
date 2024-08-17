@@ -17,11 +17,14 @@ clientPersonal.on("qr", (qr) => {
 });
 
 const generateQR = (req, res) => {
-  clientPersonal.initialize().then(() => {
-    res.status(200).send({ qrCode: qrCodeData });
-  }).catch(() => {
-    res.status(400).send({ qrCode: null })
-  });
+  clientPersonal
+    .initialize()
+    .then(() => {
+      res.status(200).send({ qrCode: qrCodeData });
+    })
+    .catch(() => {
+      res.status(400).send({ qrCode: null });
+    });
 };
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
@@ -33,8 +36,10 @@ const individualWhatsuppPersonalInvite = async (req, res) => {
 
     // Fetch the media from the Firebase URL
     const media = await MessageMedia.fromUrl(mediaUrl);
-    if (!media) throw new Error("This Media cannot be sent on whatsupp.");
-
+    if (!media) {
+      throw new Error("Failed to fetch media from the provided URL.");
+    }
+    
     // Send the media with an optional caption
     const invitations = await clientPersonal.sendMessage(chatId, media, {
       caption,
@@ -42,9 +47,9 @@ const individualWhatsuppPersonalInvite = async (req, res) => {
     if (!invitations) throw new Error("Something Wrong");
 
     const invitation = {
-      from: invitations.from,
-      to: invitations.to,
-      mediaType: invitations.type,
+      from: invitations?.from,
+      to: invitations?.to,
+      mediaType: invitations?.type,
       status: "sended",
     };
 
@@ -66,7 +71,7 @@ const individualWhatsuppPersonalInvite = async (req, res) => {
 
     res.status(200).send({ success: true, invitation });
   } catch (error) {
-    res.status(500).send({ success: false, error: error.message });
+    res.status(400).send({ success: false, error: error.message });
   }
 };
 
