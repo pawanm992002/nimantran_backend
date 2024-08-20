@@ -72,10 +72,8 @@ const transferCredit = async (req, res) => {
     customer.credits += credits;
 
     await client.save();
-    console.log("Client credits updated");
 
     await customer.save();
-    console.log("Customer credits updated");
 
     // Create credit transaction for customer
     const Transaction = await createTransaction(

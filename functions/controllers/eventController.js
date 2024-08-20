@@ -7,9 +7,7 @@ const createEvent = async (req, res) => {
     const { customerId } = req.params;
     // const csvFilePath = req.file?.path;
     // const guests = csvFilePath ? await processCsvFile(csvFilePath) : [];
-    // console.log(customerId)
     const customer = await User.findById(customerId);
-    // console.log(User)
     const event = new Event({
       customerId,
       eventName,
@@ -34,7 +32,6 @@ const createEvent = async (req, res) => {
       message: "Event created successfully",
     });
   } catch (error) {
-    console.error("Error creating event:", error); // Log the detailed error
     res.status(400).json({
       error: error.message,
       message: "Error creating event",

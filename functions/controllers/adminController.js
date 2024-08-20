@@ -104,10 +104,8 @@ const getAllUsers = async (req, res) => {
     if (!users) {
       return new Error("No users are found");
     }
-    console.log("error4");
 
     res.status(200).json({ msg: "", data: users });
-    console.log("error5");
     return;
   } catch (error) {
     res.status(500).json({ msg: "Something Went wrong", data: null });
@@ -127,7 +125,6 @@ const createClient = async (req, res) => {
       role: "client",
       credits: 0,
     });
-    console.log("hited");
 
     await client.save();
 
@@ -168,6 +165,37 @@ const rejectCreditRequest = async (req, res) => {
   }
 };
 
+const transferCreditToClient = async (req, res) => {
+  try {
+    const {userId, credits} = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    user.credits += credits;
+    await user.save();
+
+    const Transaction = await createTransaction(
+      "transfer",
+      req.user._id,
+      userId,
+      credits,
+      "completed",
+      null
+    );
+
+    if (!Transaction) throw new Error("Failed to create credit transaction");
+
+    res.status(200).json({
+      message: "Transfer Successfull",
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 module.exports = {
   loginAdmin,
   getAllUsers,
@@ -175,4 +203,5 @@ module.exports = {
   getRequests,
   acceptCreditRequest,
   rejectCreditRequest,
+  transferCreditToClient,
 };

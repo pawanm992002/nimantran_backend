@@ -40,7 +40,6 @@ const uploadFileToFirebase = async (
 
    const fileName = eventId +"file" + fileExtension;
    const buffer = req.files[0]?.buffer;
-   console.log(fileName)
    const url = await uploadFileToFirebase(buffer,fileName,eventId,false,0)
     if(!url){
         return res.status(400).json({ message: "Error uploading image" });
@@ -62,7 +61,6 @@ const saveText = async (req, res) => {
         texts
     } = req.body;
 
-    console.log("fffff", texts)
     const { eventId } = req.query;
     if (!texts) return res.status(400).json({ message: "Text not found" });
     if (!eventId) return res.status(400).json({ message: "Event ID not found"});
@@ -91,7 +89,6 @@ if (textss.length <= 0 ) {
 
         return res.status(200).json(textUpload);
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ message: "Internal server error" });
     }
 } else {
@@ -111,7 +108,6 @@ if (textss.length <= 0 ) {
         return res.status(200).json(updatedTexts);
 
     } catch (error) {
-        console.log(error);
     }
 }
     
@@ -162,7 +158,6 @@ const getTexts = async (req, res) => {
 
         return res.status(200).json(texts);
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ message: "Internal server error" });
     }
 }

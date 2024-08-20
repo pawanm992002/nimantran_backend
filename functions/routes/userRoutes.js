@@ -1,8 +1,6 @@
 const router = require("express").Router();
 const { authenticateJWT, roleMiddleware } = require("../middleware/auth");
 
-const { individualInvite } = require("../controllers/InviteController");
-
 const {
   registerUser,
   loginUser,
@@ -25,12 +23,6 @@ router.post(
   authenticateJWT,
   roleMiddleware(["customer"]),
   purchaseRequestFromClient
-);
-
-router.post(
-  `/sendIndividualInvite`,
-  authenticateJWT,
-  individualInvite
 );
 
 module.exports = router;
