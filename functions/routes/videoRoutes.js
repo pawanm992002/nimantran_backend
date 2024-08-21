@@ -6,58 +6,27 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const archiver = require("archiver");
 const { createCanvas, registerFont, deregisterAllFonts } = require("canvas");
-const csv = require("csv-parser");
 const { authenticateJWT } = require("../middleware/auth");
 const {
   downloadGoogleFont,
   addOrUpdateGuests,
+  uploadFileToFirebase,
 } = require("../utility/proccessing");
-const { app, firebaseStorage } = require("../firebaseConfig");
-const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
 const createTransaction = require("../utility/creditTransiction");
 const os = require("os");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
+ffmpeg.setFfprobePath(ffmpegPath);
 
 const router = express.Router();
 
 // const UPLOAD_DIR = path.join(__dirname, "../tmp");
 const UPLOAD_DIR = os.tmpdir() || "/tmp";
 const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "video");
-const CSV_UPLOAD_DIR = path.join(UPLOAD_DIR, "guestNames");
 
-if (!fs.existsSync(CSV_UPLOAD_DIR)) {
-  fs.mkdirSync(CSV_UPLOAD_DIR);
-}
 if (!fs.existsSync(VIDEO_UPLOAD_DIR)) {
   fs.mkdirSync(VIDEO_UPLOAD_DIR);
 }
-
-const uploadFileToFirebase = async (
-  fileBuffer,
-  filename,
-  eventId,
-  isSample,
-  i
-) => {
-  try {
-    let storageRef;
-    if (isSample === "true") {
-      storageRef = ref(
-        firebaseStorage,
-        `sample/sample${i}${i === "zip" ? ".zip" : ".png"}`
-      );
-    } else {
-      storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
-    }
-    const snapshot = await uploadBytes(storageRef, fileBuffer);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-  } catch (error) {
-    console.error("Error uploading file to Firebase:", error);
-    throw error;
-  }
-};
 
 const createCanvasWithCenteredText = async (
   val,
@@ -119,7 +88,8 @@ const createVideoForGuest = (
   scalingH,
   scalingW,
   val,
-  i
+  i,
+  videoDuration
 ) => {
   return new Promise(async (resolve, reject) => {
     const streams = await Promise.all(
@@ -142,7 +112,7 @@ const createVideoForGuest = (
       processedVideo.input(text.stream).loop(1); // change the loop time
     });
 
-    processedVideo.loop(60);
+    processedVideo.loop(videoDuration);
 
     const configuration = texts.flatMap((text, idx) => {
       const xPos = parseInt(text.position.x * scalingW);
@@ -348,7 +318,6 @@ const createVideoForGuest = (
         }
       })
       .on("error", (err) => {
-        console.log(err);
         reject(err);
       })
       .run();
@@ -376,29 +345,32 @@ router.post(
   async (req, res) => {
     let inputPath;
     try {
-      const { textProperty, scalingFont, scalingW, scalingH, isSample } =
+      const { textProperty, scalingFont, scalingW, scalingH, isSample, videoDuration } =
         req.body;
 
       const eventId = req?.query?.eventId;
 
+      let { guestNames } = req.body;
+
+      if (isSample === "true") {
+        guestNames = [
+          { name: "pawan mishra", mobileNumber: "912674935684" },
+          {
+            name: "Wolf eschlegelst einhausen berger dorff",
+            mobileNumber: "913647683694",
+          },
+        ];
+      } else {
+        guestNames = JSON.parse(guestNames);
+      }
+
       const inputFileName = req.files.find((val) => val.fieldname === "video");
-      const guestsFileName = req.files.find(
-        (val) => val.fieldname === "guestNames"
-      );
 
       inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
         inputFileName.originalname
       }`;
-      const csvFilePath =
-        isSample === "true"
-          ? ""
-          : `${path.join(CSV_UPLOAD_DIR)}/${guestsFileName.originalname}`;
 
       fs.writeFileSync(inputPath, inputFileName.buffer);
-
-      if (isSample !== "true") {
-        fs.writeFileSync(csvFilePath, guestsFileName.buffer);
-      }
 
       if (!eventId) throw new Error("Required Event Id");
 
@@ -408,17 +380,6 @@ router.post(
         return res
           .status(400)
           .json({ error: "Please provide the guest list and video." });
-      }
-
-      let guestNames = [];
-
-      if (isSample === "true") {
-        guestNames = [
-          { name: "pawan", mobile: "84145874" },
-          { name: "sanjay", mobile: "4258454" },
-        ];
-      } else {
-        guestNames = await processCsvFile(csvFilePath);
       }
 
       const zipFilename = `processed_videos_${Date.now()}.zip`;
@@ -443,10 +404,8 @@ router.post(
             scalingW,
             val,
             i,
-            eventId,
-            isSample
+            videoDuration
           );
-
           const filename = `${val?.name}_${val?.mobileNumber}.mp4`;
           archive.append(buffer, { name: filename });
 
@@ -454,8 +413,7 @@ router.post(
             buffer,
             filename,
             eventId,
-            isSample,
-            i
+            isSample
           );
 
           val.link = url;
@@ -471,8 +429,7 @@ router.post(
           zipBuffer,
           zipFilename,
           eventId,
-          isSample,
-          "zip"
+          isSample
         );
 
         fs.unlinkSync(zipPath);
@@ -480,7 +437,7 @@ router.post(
         if (isSample !== "true") {
           const amountSpend = 1 * guestNames.length;
 
-          await addOrUpdateGuests(eventId, guestNames);
+          await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
             "video",
             req.user._id,

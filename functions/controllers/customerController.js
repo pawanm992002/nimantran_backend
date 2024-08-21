@@ -58,7 +58,8 @@ const searchCustomers = async (req, res) => {
 
     // Use a regular expression for case-insensitive matching from the start of the string
     const customers = await User.find({
-      name: { $regex: `^${query}`, $options: "i" }
+      name: { $regex: `^${query}`, $options: "i" },
+      role: "customer" 
     });
 
     res.status(200).json({

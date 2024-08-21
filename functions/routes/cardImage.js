@@ -3,15 +3,13 @@ const { fileParser } = require("express-multipart-file-parser");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const csv = require("csv-parser");
 const sharp = require("sharp");
 const { authenticateJWT } = require("../middleware/auth");
 const createTransaction = require("../utility/creditTransiction");
-const { app, firebaseStorage } = require("../firebaseConfig");
-const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
 const {
   addOrUpdateGuests,
   createCanvasWithCenteredText,
+  uploadFileToFirebase
 } = require("../utility/proccessing");
 const archiver = require("archiver");
 
@@ -19,14 +17,9 @@ const router = express.Router();
 
 const UPLOAD_DIR = os.tmpdir() || "/tmp";
 const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "video");
-const CSV_UPLOAD_DIR = path.join(UPLOAD_DIR, "guestNames");
 
 if (!fs.existsSync(VIDEO_UPLOAD_DIR)) {
   fs.mkdirSync(VIDEO_UPLOAD_DIR);
-}
-
-if (!fs.existsSync(CSV_UPLOAD_DIR)) {
-  fs.mkdirSync(CSV_UPLOAD_DIR);
 }
 
 const createImagesForGuest = async (
@@ -75,50 +68,10 @@ const createImagesForGuest = async (
   }
 };
 
-const uploadFileToFirebase = async (
-  fileBuffer,
-  filename,
-  eventId,
-  isSample,
-  i
-) => {
-  try {
-    let storageRef;
-    if (isSample === "true") {
-      storageRef = ref(
-        firebaseStorage,
-        `sample/sample${i}${i === "zip" ? ".zip" : ".png"}`
-      );
-    } else {
-      storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
-    }
-    const snapshot = await uploadBytes(storageRef, fileBuffer);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-  } catch (error) {
-    console.error("Error uploading file to Firebase:", error);
-    throw error;
-  }
-};
-
-const processCsvFile = (csvFilePath) => {
-  return new Promise((resolve, reject) => {
-    const guestNames = [];
-    fs.createReadStream(csvFilePath)
-      .pipe(csv())
-      .on("data", (data) => guestNames.push(data))
-      .on("end", () => {
-        fs.unlinkSync(csvFilePath);
-        resolve(guestNames);
-      })
-      .on("error", reject);
-  });
-};
-
 router.post(
   "/",
   authenticateJWT,
-  fileParser({ rawBodyOptions: { limit: "500mb" } }),
+  fileParser({ rawBodyOptions: { limit: "200mb" } }),
   async (req, res) => {
     let inputPath;
     try {
@@ -126,25 +79,24 @@ router.post(
         req.body;
 
       const eventId = req?.query?.eventId;
+      let { guestNames } = req.body;
+
+      if (isSample === "true") {
+        guestNames = [
+          { name: "pawan mishra", mobileNumber: "912674935684" },
+          { name: "Wolf eschlegelst einhausen berger dorff", mobileNumber: "913647683694" },
+        ];
+      } else {
+        guestNames = JSON.parse(guestNames);
+      }
 
       const inputFileName = req.files.find((val) => val.fieldname === "video");
-      const guestsFileName = req.files.find(
-        (val) => val.fieldname === "guestNames"
-      );
 
       inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
         inputFileName.originalname
       }`;
-      const csvFilePath =
-        isSample === "true"
-          ? ""
-          : `${path.join(CSV_UPLOAD_DIR)}/${guestsFileName.originalname}`;
 
       fs.writeFileSync(inputPath, inputFileName.buffer);
-
-      if (isSample !== "true") {
-        fs.writeFileSync(csvFilePath, guestsFileName.buffer);
-      }
 
       if (!eventId) throw new Error("Required Event Id");
 
@@ -156,18 +108,7 @@ router.post(
           .json({ error: "Please provide the guest list and video." });
       }
 
-      let guestNames = [];
-
-      if (isSample === "true") {
-        guestNames = [
-          { name: "change guest", mobileNumber: "11111" },
-          { name: "second", mobileNumber: "22222" },
-        ];
-      } else {
-        guestNames = await processCsvFile(csvFilePath);
-      }
-
-      const zipFilename = `processed_images_${Date.now()}.zip`;
+      const zipFilename = `processed_file.zip`;
       const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
       const output = fs.createWriteStream(zipPath);
@@ -199,8 +140,8 @@ router.post(
             filename,
             eventId,
             isSample,
-            i
           );
+
           val.link = url;
           return url;
         })
@@ -215,14 +156,13 @@ router.post(
           zipFilename,
           eventId,
           isSample,
-          "zip"
         );
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
           const amountSpend = 0.25 * guestNames.length;
 
-          await addOrUpdateGuests(eventId, guestNames);
+          await addOrUpdateGuests(eventId, guestNames, zipUrl);
 
           await createTransaction(
             "image",

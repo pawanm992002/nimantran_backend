@@ -47,6 +47,9 @@ const EventSchema = new mongoose.Schema({
     default: false,
     enum: [true, false],
   },
+  zipUrl: {
+    type: String
+  }
 });
 
 const Event = mongoose.model("Event", EventSchema);
