@@ -76,7 +76,15 @@ router.post(
 
       const eventId = req?.query?.eventId;
       let { guestNames } = req.body;
-      const amountSpend = 0.25 * guestNames.length;
+
+      const inputFileName = req.files.find((val) => val.fieldname === "video");
+
+      inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
+        inputFileName.originalname
+      }`;
+
+      fs.writeFileSync(inputPath, inputFileName.buffer);
+
       const user = await User.findById(req.user._id);
       if (!user) throw new Error("User not found");
 
@@ -95,17 +103,10 @@ router.post(
         guestNames = JSON.parse(guestNames);
       }
 
-      const inputFileName = req.files.find((val) => val.fieldname === "video");
-
-      inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
-        inputFileName.originalname
-      }`;
-
-      fs.writeFileSync(inputPath, inputFileName.buffer);
-
       if (!eventId) throw new Error("Required Event Id");
 
       const texts = JSON.parse(textProperty);
+      const amountSpend = 0.5 * guestNames.length;
 
       if (!texts || !inputPath) {
         return res
@@ -183,7 +184,7 @@ router.post(
         });
       });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ message: error.message });
     } finally {
       fs.unlinkSync(inputPath);
     }

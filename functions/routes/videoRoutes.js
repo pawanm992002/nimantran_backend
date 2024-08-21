@@ -95,7 +95,13 @@ const createVideoForGuest = (
   return new Promise(async (resolve, reject) => {
     const streams = await Promise.all(
       texts.map(async (text) => {
-        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        const stream = await createCanvasWithCenteredText(
+          val,
+          text,
+          scalingFont,
+          scalingH,
+          scalingW
+        );
         return { ...text, stream };
       })
     );
@@ -105,8 +111,8 @@ const createVideoForGuest = (
 
     const processedVideo = ffmpeg().input(inputPath);
 
-    streams.forEach((text) => {
-      processedVideo.input(text.stream).loop(1); // change the loop time
+    streams.map((text) => {
+      processedVideo.input(text.stream).loop(0.1); // change the loop time
     });
 
     processedVideo.loop(videoDuration);
@@ -147,7 +153,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_down":
@@ -166,7 +173,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_right":
@@ -185,7 +193,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "move_left":
@@ -204,7 +213,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "slide":
@@ -233,7 +243,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "path_cover":
@@ -258,7 +269,8 @@ const createVideoForGuest = (
               },
               inputs:
                 idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs: idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
           case "fade":
@@ -308,7 +320,6 @@ const createVideoForGuest = (
       .on("end", async () => {
         try {
           const videoBuffer = fs.readFileSync(tempOutputPath);
-
           resolve(videoBuffer);
         } catch (uploadError) {
           reject(uploadError);
@@ -353,10 +364,18 @@ router.post(
 
       const eventId = req?.query?.eventId;
       let { guestNames } = req.body;
-      const amountSpend = 1 * guestNames.length;
+
+      const inputFileName = req.files.find((val) => val.fieldname === "video");
+
+      inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
+        inputFileName.originalname
+      }`;
+
+      fs.writeFileSync(inputPath, inputFileName.buffer);
+
       const user = await User.findById(req.user._id);
       if (!user) throw new Error("User not found");
-      
+
       if (isSample === "true") {
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
@@ -366,19 +385,12 @@ router.post(
           },
         ];
       } else {
-        if (user.credits - amountSpend <= 0)
+        if ((user.credits - amountSpend) <= 0)
           throw new Error("Insufficient Balance");
-        
+
         guestNames = JSON.parse(guestNames);
       }
-
-      const inputFileName = req.files.find((val) => val.fieldname === "video");
-
-      inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
-        inputFileName.originalname
-      }`;
-
-      fs.writeFileSync(inputPath, inputFileName.buffer);
+      const amountSpend = 1 * guestNames.length;
 
       if (!eventId) throw new Error("Required Event Id");
 
@@ -460,7 +472,7 @@ router.post(
         });
       });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ message: error.message });
     } finally {
       fs.unlinkSync(inputPath); // Clean up the uploaded video file
     }
