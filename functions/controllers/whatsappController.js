@@ -3,11 +3,31 @@ const { Event } = require("../models/Event");
 const { Client, MessageMedia } = require("whatsapp-web.js"); // for personal messages
 const qrcode = require("qrcode");
 const { invitationTracker } = require("../models/InvitationTracker");
+// const fs = require("fs");
+// const path = require("path");
+// const axios = require('axios');
+// const os = require('os');
+
+// const UPLOAD_DIR = os.tmpdir()
+// const mediaUploadDir = path.join(UPLOAD_DIR, "mediaUpload")
+
+// if (!fs.existsSync(mediaUploadDir)) {
+//   fs.mkdirSync(mediaUploadDir);
+// }
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 const clientPersonal = new Client();
+// {
+//   puppeteer: { headless: false },
+//   session: null  // This will force re-authentication
+//   puppeteer: {
+//     headless: false,
+//     devtools: true, // Opens the Chrome devtools
+//     args: ["--no-sandbox", "--disable-setuid-sandbox"],
+//   },
+// }
 let qrCodeData = null;
 
 clientPersonal.on("qr", (qr) => {
@@ -15,36 +35,73 @@ clientPersonal.on("qr", (qr) => {
     qrCodeData = url;
   });
 });
+clientPersonal.on("ready", () => {
+  console.log("Client is ready!");
+});
+clientPersonal.on("auth_failure", (msg) => {
+  // Fired if authentication fails
+  console.log("Authentication failure:");
+});
+clientPersonal.on("disconnected", (reason) => {
+  // Fired when the client is disconnected from the WhatsApp Web
+  console.log("Client was logged out:");
+});
+
+clientPersonal.initialize();
 
 const generateQR = (req, res) => {
-  clientPersonal
-    .initialize()
-    .then(() => {
-      res.status(200).send({ qrCode: qrCodeData });
-    })
-    .catch(() => {
-      res.status(400).send({ qrCode: null });
-    });
+  if (!qrCodeData) {
+    res.status(400).send({ qrCode: null });
+  } else {
+    res.status(200).send({ qrCode: qrCodeData });
+  }
 };
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
   try {
+    if (!clientPersonal?.info || !clientPersonal?.info?.wid) {
+      throw new Error("WhatsApp client is not ready yet. Try Again");
+    }
+
     const { number, mediaUrl } = req.body;
     const chatId = `${number}@c.us`;
     const caption = "This is a Invitation Message";
     const { eventId } = req.query;
 
+    // Define a temporary file path
+    // const fileName = path.basename(mediaUrl.split("?")[0]);
+    // const mediaPath = path.join(mediaUploadDir, fileName);
+
+    // // Download the media from Firebase URL and save it temporarily
+    // const response = await axios({
+    //   url: mediaUrl,
+    //   method: "GET",
+    //   responseType: "stream",
+    // });
+
+    // await new Promise((resolve, reject) => {
+    //   const writer = fs.createWriteStream(mediaPath);
+    //   response.data.pipe(writer);
+    //   writer.on("finish", resolve);
+    //   writer.on("error", reject);
+    // });
+
     // Fetch the media from the Firebase URL
     const media = await MessageMedia.fromUrl(mediaUrl);
+    // const media = MessageMedia.fromFilePath(mediaPath);
+
     if (!media) {
       throw new Error("Failed to fetch media from the provided URL.");
     }
-    
+
     // Send the media with an optional caption
     const invitations = await clientPersonal.sendMessage(chatId, media, {
       caption,
     });
+
     if (!invitations) throw new Error("Something Wrong");
+
+    // fs.unlinkSync(mediaPath);
 
     const invitation = {
       from: invitations?.from,
@@ -68,15 +125,17 @@ const individualWhatsuppPersonalInvite = async (req, res) => {
       });
       await newInvitations.save();
     }
-
     res.status(200).send({ success: true, invitation });
   } catch (error) {
-    res.status(400).send({ success: false, error: error.message });
+    res.status(400).send({ success: false, message: error.message });
   }
 };
 
 const bulkWhatsuppPersonalInvite = async (req, res) => {
   try {
+    if (!clientPersonal?.info || !clientPersonal?.info?.wid) {
+      throw new Error("WhatsApp client is not ready yet. Try Again");
+    }
     const { eventId } = req.query;
     const guests = await Event.findById(eventId)?.select("guests");
 

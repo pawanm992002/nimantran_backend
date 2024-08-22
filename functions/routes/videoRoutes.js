@@ -90,7 +90,10 @@ const createVideoForGuest = (
   scalingW,
   val,
   i,
-  videoDuration
+  videoDuration,
+  archive,
+  isSample,
+  eventId
 ) => {
   return new Promise(async (resolve, reject) => {
     const streams = await Promise.all(
@@ -135,20 +138,20 @@ const createVideoForGuest = (
       };
 
       // Add transition filter if specified
+      console.log(text.transition);
       if (text.transition) {
         switch (text.transition.type) {
           case "move_up":
+            let moveToTop = 50;
             filterConfig = {
               filter: "overlay",
               options: {
                 x: xPos,
                 y: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${yPos + text.transition.options.top} + (t-${
-                  text.startTime
-                })*(${yPos}-${yPos + text.transition.options.top})/${
-                  text.transition.options.duration
-                }), ${yPos})`,
+                }), (${yPos + moveToTop} + (t-${text.startTime})*(${yPos}-${
+                  yPos + moveToTop
+                })/${text.transition.options.duration}), ${yPos})`,
                 enable: `between(t,${text.startTime},${text.duration})`,
               },
               inputs:
@@ -158,17 +161,16 @@ const createVideoForGuest = (
             };
             break;
           case "move_down":
+            let moveToBottom = 50;
             filterConfig = {
               filter: "overlay",
               options: {
                 x: xPos,
                 y: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${yPos - text.transition.options.bottom} + (t-${
-                  text.startTime
-                })*(${yPos}-${yPos - text.transition.options.bottom})/${
-                  text.transition.options.duration
-                }), ${yPos})`,
+                }), (${yPos - moveToBottom} + (t-${text.startTime})*(${yPos}-${
+                  yPos - moveToBottom
+                })/${text.transition.options.duration}), ${yPos})`,
                 enable: `between(t,${text.startTime},${text.duration})`,
               },
               inputs:
@@ -178,16 +180,15 @@ const createVideoForGuest = (
             };
             break;
           case "move_right":
+            let moveToRight = 50;
             filterConfig = {
               filter: "overlay",
               options: {
                 x: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${xPos - text.transition.options.right} + (t-${
-                  text.startTime
-                })*(${xPos}-${xPos - text.transition.options.right})/${
-                  text.transition.options.duration
-                }), ${xPos})`,
+                }), (${xPos - moveToRight} + (t-${text.startTime})*(${xPos}-${
+                  xPos - moveToRight
+                })/${text.transition.options.duration}), ${xPos})`,
                 y: yPos,
                 enable: `between(t,${text.startTime},${text.duration})`,
               },
@@ -198,16 +199,15 @@ const createVideoForGuest = (
             };
             break;
           case "move_left":
+            let moveToLeft = 50;
             filterConfig = {
               filter: "overlay",
               options: {
                 x: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${xPos + text.transition.options.left} + (t-${
-                  text.startTime
-                })*(${xPos}-${xPos + text.transition.options.left})/${
-                  text.transition.options.duration
-                }), ${xPos})`,
+                }), (${xPos + moveToLeft} + (t-${text.startTime})*(${xPos}-${
+                  xPos + moveToLeft
+                })/${text.transition.options.duration}), ${xPos})`,
                 y: yPos,
                 enable: `between(t,${text.startTime},${text.duration})`,
               },
@@ -218,26 +218,26 @@ const createVideoForGuest = (
             };
             break;
           case "slide":
+            moveToTop = 50;
+            moveToBottom = 50;
+            moveToLeft = 50;
+            moveToRight = 50;
             filterConfig = {
               filter: "overlay",
               options: {
                 x: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${xPos - text.transition.options.left} + (t-${
-                  text.startTime
-                })*(${xPos + text.transition.options.right}-${
-                  xPos - text.transition.options.left
-                })/${text.transition.options.duration}), ${
-                  xPos + text.transition.options.right
+                }), (${xPos - moveToLeft} + (t-${text.startTime})*(${
+                  xPos + moveToRight
+                }-${xPos - moveToLeft})/${text.transition.options.duration}), ${
+                  xPos + moveToRight
                 })`,
                 y: `if(lt(t,${text.startTime}+${
                   text.transition.options.duration
-                }), (${yPos - text.transition.options.top} + (t-${
-                  text.startTime
-                })*(${yPos + text.transition.options.bottom}-${
-                  yPos - text.transition.options.top
-                })/${text.transition.options.duration}), ${
-                  yPos + text.transition.options.bottom
+                }), (${yPos - moveToTop} + (t-${text.startTime})*(${
+                  yPos + moveToBottom
+                }-${yPos - moveToTop})/${text.transition.options.duration}), ${
+                  yPos + moveToBottom
                 })`,
                 enable: `between(t,${text.startTime},${text.duration})`,
               },
@@ -248,8 +248,9 @@ const createVideoForGuest = (
             };
             break;
           case "path_cover":
-            const rotationSpeed = text.transition.options.rotationSpeed;
-            const clockwise = text.transition.options.clockwise !== false; // Default to clockwise if not specified
+            const rotationSpeed = 0.4;
+            // const clockwise = text?.transition?.options?.clockwise !== false; // Default to clockwise if not specified
+            const clockwise = true;
 
             filterConfig = {
               filter: "overlay",
@@ -296,10 +297,6 @@ const createVideoForGuest = (
                 },
                 inputs:
                   idx === 0 ? "[0:v][fade1]" : `[tmp${idx}][fade${idx + 1}]`,
-                // inputs:
-                //   idx === 0
-                //     ? ["0:v", `fade${idx + 1}`]
-                //     : [`[tmp${idx}]`, `fade${idx + 1}`],
                 outputs:
                   idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
               },
@@ -319,31 +316,41 @@ const createVideoForGuest = (
       .output(tempOutputPath)
       .on("end", async () => {
         try {
-          const videoBuffer = fs.readFileSync(tempOutputPath);
-          resolve(videoBuffer);
+          // fs.rmSync(tempOutputPath);
+
+          const filename = `${val?.name}_${val?.mobileNumber}.mp4`;
+
+          const fileStreamForArchive = fs.createReadStream(tempOutputPath);
+
+          archive.append(fileStreamForArchive, { name: filename });
+
+          const url = await uploadFileToFirebase(
+            fs.readFileSync(tempOutputPath),
+            filename,
+            eventId,
+            isSample
+          );
+
+          val.link = url;
+          resolve(url);
         } catch (uploadError) {
           reject(uploadError);
         }
       })
       .on("error", (err) => {
+        console.log(err)
         reject(err);
       })
       .run();
   });
 };
 
-const processCsvFile = (csvFilePath) => {
-  return new Promise((resolve, reject) => {
-    const guestNames = [];
-    fs.createReadStream(csvFilePath)
-      .pipe(csv())
-      .on("data", (data) => guestNames.push(data))
-      .on("end", () => {
-        fs.unlinkSync(csvFilePath);
-        resolve(guestNames);
-      })
-      .on("error", reject);
-  });
+// Helper function to chunk an array into smaller arrays of a specified size
+const chunkArray = (array, chunkSize) => {
+  return array.reduce((acc, _, i) => {
+    if (i % chunkSize === 0) acc.push(array.slice(i, i + chunkSize));
+    return acc;
+  }, []);
 };
 
 router.post(
@@ -364,6 +371,7 @@ router.post(
 
       const eventId = req?.query?.eventId;
       let { guestNames } = req.body;
+      let amountSpend;
 
       const inputFileName = req.files.find((val) => val.fieldname === "video");
 
@@ -385,12 +393,12 @@ router.post(
           },
         ];
       } else {
-        if ((user.credits - amountSpend) <= 0)
-          throw new Error("Insufficient Balance");
-
         guestNames = JSON.parse(guestNames);
+        amountSpend = 1 * guestNames.length;
+
+        if (user.credits - amountSpend <= 0)
+          throw new Error("Insufficient Balance");
       }
-      const amountSpend = 1 * guestNames.length;
 
       if (!eventId) throw new Error("Required Event Id");
 
@@ -414,32 +422,29 @@ router.post(
 
       archive.pipe(output);
 
-      const videoFilenames = await Promise.all(
-        guestNames.map(async (val, i) => {
-          const buffer = await createVideoForGuest(
-            inputPath,
-            texts,
-            scalingFont,
-            scalingH,
-            scalingW,
-            val,
-            i,
-            videoDuration
-          );
-          const filename = `${val?.name}_${val?.mobileNumber}.mp4`;
-          archive.append(buffer, { name: filename });
+      // Control concurrency to avoid overwhelming the server
+      const concurrencyLimit = 10;
+      const chunks = chunkArray(guestNames, concurrencyLimit);
 
-          const url = await uploadFileToFirebase(
-            buffer,
-            filename,
-            eventId,
-            isSample
-          );
-
-          val.link = url;
-          return url;
-        })
-      );
+      for (const chunk of chunks) {
+        await Promise.all(
+          chunk.map(async (val, i) => {
+            await createVideoForGuest(
+              inputPath,
+              texts,
+              scalingFont,
+              scalingH,
+              scalingW,
+              val,
+              i,
+              videoDuration,
+              archive,
+              isSample,
+              eventId
+            );
+          })
+        );
+      }
 
       await archive.finalize();
 
@@ -452,8 +457,6 @@ router.post(
           isSample
         );
 
-        fs.unlinkSync(zipPath);
-
         if (isSample !== "true") {
           await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
@@ -465,7 +468,6 @@ router.post(
             eventId
           );
         }
-
         res.status(200).json({
           zipUrl,
           videoUrls: guestNames,
