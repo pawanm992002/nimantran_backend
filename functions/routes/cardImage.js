@@ -75,6 +75,7 @@ router.post(
         req.body;
 
       const eventId = req?.query?.eventId;
+      let amountSpend;
       let { guestNames } = req.body;
 
       const inputFileName = req.files.find((val) => val.fieldname === "video");
@@ -97,16 +98,16 @@ router.post(
           },
         ];
       } else {
+        guestNames = JSON.parse(guestNames);
+        amountSpend = 0.5 * guestNames.length;
+
         if (user.credits - amountSpend <= 0)
           throw new Error("Insufficient Balance");
-
-        guestNames = JSON.parse(guestNames);
       }
 
       if (!eventId) throw new Error("Required Event Id");
 
       const texts = JSON.parse(textProperty);
-      const amountSpend = 0.5 * guestNames.length;
 
       if (!texts || !inputPath) {
         return res

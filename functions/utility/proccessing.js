@@ -158,17 +158,18 @@ const uploadFileToFirebase = async (
       storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
     }
     const snapshot = await uploadBytes(storageRef, fileBuffer);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
+    return await getDownloadURL(snapshot.ref);
+
   } catch (error) {
     console.error("Error uploading file to Firebase:", error);
     throw error;
   }
 };
 
+
 module.exports = {
   downloadGoogleFont,
   addOrUpdateGuests,
   createCanvasWithCenteredText,
-  uploadFileToFirebase
+  uploadFileToFirebase,
 };
