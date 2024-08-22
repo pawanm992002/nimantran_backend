@@ -32,8 +32,9 @@ const uploadFileToFirebase = async (
     }
   };
   const uploadFile = async (req ,res) =>{
-    const { eventId} = req.query;
-    let inputFilePath = req.files.find((val) => val.fieldname === "pawan");
+    
+    const { eventId} = req?.query;
+    let inputFilePath = req.files.find((val) => val.fieldname === "inputfile");
     const buffer = inputFilePath.buffer;
 
     console.log(inputFilePath);
@@ -53,7 +54,6 @@ const uploadFileToFirebase = async (
         }
     },{new: true});
     return res.status(200).json({file});
-    
   }
 
 
