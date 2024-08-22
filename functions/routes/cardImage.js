@@ -12,6 +12,7 @@ const {
   uploadFileToFirebase,
 } = require("../utility/proccessing");
 const archiver = require("archiver");
+const {User} = require('../models/User')
 
 const router = express.Router();
 
