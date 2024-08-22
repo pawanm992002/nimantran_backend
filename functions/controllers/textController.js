@@ -33,19 +33,20 @@ const uploadFileToFirebase = async (
   };
   const uploadFile = async (req ,res) =>{
     const { eventId} = req.query;
-    
-    const patToFile = req.files[0]?.name;
+    let inputFilePath = req.files.find((val) => val.fieldname === "pawan");
+    const buffer = inputFilePath.buffer;
+
+    console.log(inputFilePath);
+    const patToFile = inputFilePath.originalname;
 
    const fileExtension = path.extname(patToFile)
 
    const fileName = eventId +"file" + fileExtension;
-   const buffer = req.files[0]?.buffer;
+   console.log(fileName)
    const url = await uploadFileToFirebase(buffer,fileName,eventId,false,0)
     if(!url){
         return res.status(400).json({ message: "Error uploading image" });
     }
-
-   
     const file = await Text.findOneAndUpdate({eventId},{
         $set: {
             inputFile: url
