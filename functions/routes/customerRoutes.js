@@ -3,6 +3,7 @@ const {
   getCustomer,
   updateCustomer,
   searchCustomers, // Import the new function
+  getRequests
 } = require("../controllers/customerController");
 const {
   getEvent,
@@ -36,6 +37,12 @@ router.get(
   "/searchCustomers",
   authenticateJWT,
   searchCustomers
+);
+
+router.get(
+  "/customers-requests",
+  authenticateJWT,
+  getRequests
 );
 
 module.exports = router;

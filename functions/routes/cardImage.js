@@ -179,6 +179,7 @@ router.post(
         if (isSample !== "true") {
           const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
 
+          console.log(eventId);
           await createTransaction(
             "image",
             req.user._id,

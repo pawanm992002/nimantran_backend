@@ -1,4 +1,4 @@
-const { User } = require("../models/User");
+const { User, Request } = require("../models/User");
 
 const getCustomer = async (req, res) => {
   try {
@@ -60,7 +60,7 @@ const searchCustomers = async (req, res) => {
     const customers = await User.find({
       name: { $regex: `^${query}`, $options: "i" },
       role: "customer",
-      clientId: req.user._id
+      clientId: req.user._id,
     });
 
     res.status(200).json({
@@ -77,5 +77,29 @@ const searchCustomers = async (req, res) => {
   }
 };
 
+const getRequests = async (req, res) => {
+  try {
+    const requests = await Request.find({ By: req.query.customerId }).populate(
+      "To",
+      {
+        name: 1,
+        // _id: 1,
+      }
+    );
 
-module.exports = { getCustomer, updateCustomer, searchCustomers };
+    if (!requests) {
+      throw new Error("no requests");
+    }
+
+    return res.status(200).json({
+      data: requests,
+      message: "requests fetched successfully",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+};
+
+module.exports = { getCustomer, updateCustomer, searchCustomers, getRequests };
