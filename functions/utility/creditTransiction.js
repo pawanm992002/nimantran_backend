@@ -12,6 +12,7 @@ const createTransaction = async (
 ) => {
   try {
     // Validate required fields
+
     if (
       !areaOfUse ||
       !["video", "image", "pdf", "transfer"].includes(areaOfUse)
@@ -59,7 +60,7 @@ const createTransaction = async (
     // Return the saved transaction
     return transaction;
   } catch (error) {
-    throw new Error(error.message)
+    return error;
   }
 };
 

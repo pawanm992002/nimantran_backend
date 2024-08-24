@@ -30,6 +30,9 @@ const createPdfForGuest = async (
   scalingH,
   scalingW,
   val,
+  archive,
+  eventId, 
+  isSample
 ) => {
   try {
     const streams = await Promise.all(
@@ -57,7 +60,19 @@ const createPdfForGuest = async (
       });
     }))
 
-    return await pdfDoc.save();
+    const buffer = await pdfDoc.save();
+
+    const filename = `${val?.name}_${val?.mobileNumber}.pdf`;
+    archive.append(new Buffer.from(buffer), { name: filename });
+
+    const url = await uploadFileToFirebase(
+      buffer,
+      filename,
+      eventId,
+      isSample
+    );
+    val.link = url;
+    return url;
   } catch (error) {
     throw error;
   }
@@ -74,6 +89,7 @@ router.post(
         req.body;
 
       const eventId = req?.query?.eventId;
+      if (!eventId) throw new Error("Required Event Id");
       let amountSpend;
       let { guestNames } = req.body;
 
@@ -124,26 +140,15 @@ router.post(
 
       await Promise.all(
         guestNames.map(async (val, i) => {
-          const buffer = await createPdfForGuest(
+          const url = await createPdfForGuest(
             inputPath,
             texts,
             scalingFont,
             scalingH,
             scalingW,
             val,
+            archive, eventId, isSample
           );
-
-          const filename = `${val?.name}_${val?.mobileNumber}.pdf`;
-          archive.append(new Buffer.from(buffer), { name: filename });
-
-          const url = await uploadFileToFirebase(
-            buffer,
-            filename,
-            eventId,
-            isSample
-          );
-          val.link = url;
-          return url;
         })
       );
 
@@ -161,9 +166,10 @@ router.post(
 
         if (isSample !== "true") {
           const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
+
           await createTransaction(
             "pdf",
-            eventId,
+            req.user._id.
             null,
             amountSpend,
             "completed",

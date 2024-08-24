@@ -95,6 +95,7 @@ router.post(
         req.body;
 
       const eventId = req?.query?.eventId;
+      if (!eventId) throw new Error("Required Event Id");
       let amountSpend;
       let { guestNames } = req.body;
 
@@ -124,8 +125,6 @@ router.post(
         if (user.credits - amountSpend <= 0)
           throw new Error("Insufficient Balance");
       }
-
-      if (!eventId) throw new Error("Required Event Id");
 
       const texts = JSON.parse(textProperty);
 
@@ -160,7 +159,6 @@ router.post(
             eventId,
             isSample
           );
-          console.log(url);
         })
       );
 
@@ -179,7 +177,6 @@ router.post(
         if (isSample !== "true") {
           const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
 
-          console.log(eventId);
           await createTransaction(
             "image",
             req.user._id,
@@ -190,6 +187,7 @@ router.post(
             customerId
           );
         }
+        
         res.status(200).json({
           zipUrl,
           videoUrls: guestNames,
