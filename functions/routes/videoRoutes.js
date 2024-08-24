@@ -138,7 +138,6 @@ const createVideoForGuest = (
       };
 
       // Add transition filter if specified
-      console.log(text.transition);
       if (text.transition) {
         switch (text.transition.type) {
           case "move_up":
@@ -458,14 +457,15 @@ router.post(
         );
 
         if (isSample !== "true") {
-          await addOrUpdateGuests(eventId, guestNames, zipUrl);
+          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
             "video",
             req.user._id,
             null,
             amountSpend,
             "completed",
-            eventId
+            eventId,
+            customerId
           );
         }
         res.status(200).json({

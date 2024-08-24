@@ -1,27 +1,26 @@
-const mongoose = require("mongoose");
 const CreditTransaction = require("../models/Credits");
 
 const getAllCustomerTransactions = async (req, res) => {
   try {
-    const { customerId } = req.params;
+    const { areaOfUse, customerId } = req.query;
+    let transaction = [];
 
-    // Validate customerId
-    if (!mongoose.Types.ObjectId.isValid(customerId)) {
-      return res.status(400).json({ message: "Invalid customer ID format" });
+    if (areaOfUse === "transfer") {
+      transaction = await CreditTransaction.find({
+        recieverId: customerId,
+        areaOfUse: areaOfUse,
+      })
+        .populate("recieverId", "name");
     }
 
-    // Find all transactions where customerId matches
-    const transactions = await CreditTransaction.find({recieverId:customerId}).populate("senderId").select("-password -token");
-
-    // Check if transactions were found
-    if (!transactions.length) {
-      return res
-        .status(404)
-        .json({ message: "No transactions found for this customer." });
+    if (['spend'].includes(areaOfUse)) {
+      transaction = await CreditTransaction.find({
+        customerId: customerId,
+        areaOfUse: ['image', 'pdf', 'video'],
+      }).populate("eventId");
     }
 
-    // Return the found transactions
-    return res.status(200).json(transactions);
+    return res.status(200).json(transaction);
   } catch (error) {
     console.error("Error fetching transactions:", error.message);
     return res

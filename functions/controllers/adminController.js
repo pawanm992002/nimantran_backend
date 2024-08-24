@@ -1,7 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { User, Request } = require("../models/User");
 const bcrypt = require("bcryptjs");
-const CreditTransaction = require("../models/Credits");
 const createTransaction = require("../utility/creditTransiction");
 
 const loginAdmin = async (req, res) => {
@@ -49,7 +48,7 @@ const acceptCreditRequest = async (req, res) => {
       throw new Error("Request not found");
     }
 
-    const clientId = request.user;
+    const clientId = request.By;
 
     const user = await User.findById(clientId);
     if (!user) {
@@ -61,12 +60,14 @@ const acceptCreditRequest = async (req, res) => {
 
     request.status = "completed";
     await request.save();
+
     const Transaction = await createTransaction(
       "transfer",
       adminId,
-      request.user,
+      request.By,
       request.credits,
       "completed",
+      null,
       null
     );
 
@@ -84,7 +85,7 @@ const acceptCreditRequest = async (req, res) => {
 
 const getRequests = async (req, res) => {
   try {
-    const requests = await Request.find().populate("user", "name");
+    const requests = await Request.find({To:req.user._id}).populate("By", "name");
     res.status(200).json({
       message: "All requests fetched successfully",
       data: requests,
@@ -145,7 +146,7 @@ const rejectCreditRequest = async (req, res) => {
       throw new Error("Request not found");
     }
 
-    const clientId = request.user;
+    const clientId = request.By;
 
     const user = await User.findById(clientId);
     if (!user) {
@@ -183,6 +184,7 @@ const transferCreditToClient = async (req, res) => {
       userId,
       credits,
       "completed",
+      null,
       null
     );
 

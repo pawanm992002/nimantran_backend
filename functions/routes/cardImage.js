@@ -12,7 +12,7 @@ const {
   uploadFileToFirebase,
 } = require("../utility/proccessing");
 const archiver = require("archiver");
-const {User} = require('../models/User')
+const { User } = require("../models/User");
 
 const router = express.Router();
 
@@ -30,12 +30,20 @@ const createImagesForGuest = async (
   scalingH,
   scalingW,
   val,
-  i
+  archive,
+  eventId,
+  isSample
 ) => {
   try {
     const streams = await Promise.all(
       texts.map(async (text) => {
-        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        const stream = await createCanvasWithCenteredText(
+          val,
+          text,
+          scalingFont,
+          scalingH,
+          scalingW
+        );
         return { ...text, stream };
       })
     );
@@ -59,7 +67,18 @@ const createImagesForGuest = async (
 
     const outputBuffer = await baseImage.toBuffer();
 
-    return outputBuffer;
+    const filename = `${val?.name}_${val?.mobileNumber}.png`;
+    archive.append(outputBuffer, { name: filename });
+
+    const url = await uploadFileToFirebase(
+      outputBuffer,
+      filename,
+      eventId,
+      isSample
+    );
+
+    val.link = url;
+    return url;
   } catch (error) {
     throw error;
   }
@@ -100,7 +119,7 @@ router.post(
         ];
       } else {
         guestNames = JSON.parse(guestNames);
-        amountSpend = 0.5 * guestNames.length;
+        amountSpend = 0.25 * guestNames.length;
 
         if (user.credits - amountSpend <= 0)
           throw new Error("Insufficient Balance");
@@ -130,28 +149,18 @@ router.post(
 
       await Promise.all(
         guestNames.map(async (val, i) => {
-          const buffer = await createImagesForGuest(
+          const url = await createImagesForGuest(
             inputPath,
             texts,
             scalingFont,
             scalingH,
             scalingW,
             val,
-            i
-          );
-
-          const filename = `${val?.name}_${val?.mobileNumber}.png`;
-          archive.append(buffer, { name: filename });
-
-          const url = await uploadFileToFirebase(
-            buffer,
-            filename,
+            archive,
             eventId,
             isSample
           );
-
-          val.link = url;
-          return url;
+          console.log(url);
         })
       );
 
@@ -168,7 +177,7 @@ router.post(
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
-          await addOrUpdateGuests(eventId, guestNames, zipUrl);
+          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
 
           await createTransaction(
             "image",
@@ -176,10 +185,10 @@ router.post(
             null,
             amountSpend,
             "completed",
-            eventId
+            eventId,
+            customerId
           );
         }
-
         res.status(200).json({
           zipUrl,
           videoUrls: guestNames,

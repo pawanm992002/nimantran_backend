@@ -55,13 +55,11 @@ const registerUser = async (req, res) => {
       role,
       clientId: role === "customer" ? clientId : null,
       customers: [],
-      sendRequests: [],
-      receiveRequests: role === "customer" ? null : [],
       name,
     });
 
     // Save new user to the database
-    const result = await newUser.save();
+    await newUser.save();
 
     res.status(200).json({ message: `${role} registered successfully` });
   } catch (error) {
@@ -129,20 +127,15 @@ const purchaseRequestFromClient = async (req, res) => {
     if (client.role !== "client") {
       throw new Error("Requests can only be sent to clients");
     }
-    
-    // if (customer.clientId !== client._id) {
-    //   throw new Error("Customers can only send requests to their clients");
-    // }
 
     const request = new Request({
-      user: req.user._id,
+      By: req.user._id,
+      To: customer.clientId,
       credits,
       status: "pending",
     });
 
     await request.save();
-    await client.updateOne({ $push: { receiveRequests: req.user._id } });
-    await customer.updateOne({ $push: { sendRequests: client._id } });
 
     res.status(200).json({ message: "Request sent successfully", data: request });
   } catch (error) {

@@ -211,7 +211,7 @@ const getAllClientEvents = async (req, res) => {
           events: customer.events,
         };
       });
-      console.log(allEventsWithCustomerNames);
+      
       res.status(200).json({
         success: true,
         data: allEventsWithCustomerNames,

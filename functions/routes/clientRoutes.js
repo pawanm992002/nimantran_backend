@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { authenticateJWT, roleMiddleware } = require("../middleware/auth");
-const { getClient, createCustomer, transferCredit, purchaseRequestFromAdmin, getRequests, getCustomerRequests } = require("../controllers/clientController");
+const { getClient, createCustomer, transferCredit, purchaseRequestFromAdmin, getRequests, getCustomerRequests,acceptCustomerCreditRequest, rejectCustomerCreditRequest } = require("../controllers/clientController");
 
 // Client - Information
 router.get(
@@ -47,6 +47,9 @@ router.post(
   purchaseRequestFromAdmin
 );
 
+
+router.get("/acceptCustomerCreditRequest/:requestId",authenticateJWT,acceptCustomerCreditRequest);
+router.get("/rejectCustomerCreditRequest/:requestId",authenticateJWT,rejectCustomerCreditRequest);
 
 
 module.exports = router;

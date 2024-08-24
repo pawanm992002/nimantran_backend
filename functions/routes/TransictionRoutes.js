@@ -8,7 +8,7 @@ const {
 const { authenticateJWT, roleMiddleware } = require("../middleware/auth");
 
 router.get(
-  "/get-transictions/:customerId",
+  "/get-transictions",
   authenticateJWT,
   getAllCustomerTransactions
 );

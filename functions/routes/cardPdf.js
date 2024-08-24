@@ -160,14 +160,15 @@ router.post(
         fs.unlinkSync(zipPath);
 
         if (isSample !== "true") {
-          await addOrUpdateGuests(eventId, guestNames, zipUrl);
+          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
           await createTransaction(
             "pdf",
             eventId,
             null,
             amountSpend,
             "completed",
-            eventId
+            eventId,
+            customerId
           );
         }
 

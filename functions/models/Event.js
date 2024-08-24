@@ -48,6 +48,8 @@ const EventSchema = new mongoose.Schema({
   zipUrl: {
     type: String
   }
+}, {
+  timestamps: true
 });
 
 const Event = mongoose.model("Event", EventSchema);

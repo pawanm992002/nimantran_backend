@@ -71,7 +71,7 @@ const addOrUpdateGuests = async (eventId, guests, zipUrl) => {
     });
 
     const updatedEvent = await event.save();
-    return updatedEvent;
+    return event.customerId;
   } catch (error) {
     return error;
   }

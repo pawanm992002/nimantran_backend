@@ -35,6 +35,11 @@ const creditTransactionSchema = new Schema({
   transactionDate: {
     type: Date,
     default: Date.now
+  },
+  customerId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
   }
 });
 

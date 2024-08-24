@@ -7,7 +7,8 @@ const createTransaction = async (
   recieverId,
   amount,
   status,
-  eventId
+  eventId,
+  customerId
 ) => {
   try {
     // Validate required fields
@@ -25,6 +26,12 @@ const createTransaction = async (
       throw new Error("Missing status of transaction");
     }
 
+    const client = await User.findById(senderId);
+    if (!client) throw new Error("Client not found");
+
+    const clientCredit = parseFloat(client.credits) - parseFloat(amount);
+    if (clientCredit < 0) throw new Error("Insufficient credits");
+
     // Create a new transaction
     const transaction = new CreditTransaction({
       areaOfUse,
@@ -34,6 +41,7 @@ const createTransaction = async (
       amount,
       status,
       transactionDate: new Date(),
+      customerId
     });
 
     // Save the transaction to the database
@@ -51,7 +59,7 @@ const createTransaction = async (
     // Return the saved transaction
     return transaction;
   } catch (error) {
-    return error;
+    throw new Error(error.message)
   }
 };
 

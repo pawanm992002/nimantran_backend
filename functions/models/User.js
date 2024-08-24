@@ -3,7 +3,12 @@ const mongoose = require("mongoose");
 // Define the Request schema
 const RequestSchema = new mongoose.Schema(
   {
-    user: {
+    By: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    To: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -76,18 +81,6 @@ const UserSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-      },
-    ],
-    sendRequests: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Request",
-      },
-    ],
-    receiveRequests: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Request",
       },
     ],
     events: [

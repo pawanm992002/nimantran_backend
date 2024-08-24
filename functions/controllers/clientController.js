@@ -57,35 +57,28 @@ const createCustomer = async (req, res) => {
 const transferCredit = async (req, res) => {
   const { customerId, credits } = req.body;
   try {
-    const customer = await User.findOne({
-      _id: customerId,
-      clientId: req.user._id,
-    });
-
-    if (!customer) throw new Error("Customer not found");
-
-    const client = await User.findById(req.user._id);
-
-    if (client.credits < credits) throw new Error("Insufficient credits");
-
-    client.credits -= credits;
-    customer.credits += credits;
-
-    await client.save();
-
-    await customer.save();
-
-    // Create credit transaction for customer
-    const Transaction = await createTransaction(
+    if (credits <= 0) {
+      throw new Error("Credits must be a positive number");
+    }
+    
+    await createTransaction(
       "transfer",
       req.user._id,
       customerId,
       credits,
       "completed",
+      null,
       null
     );
-
-    if (!Transaction) throw new Error("Failed to create credit transaction");
+    
+    const customer = await User.findOne({
+      _id: customerId,
+      clientId: req.user._id,
+    });
+    if (!customer) throw new Error("Customer not found");
+    
+    customer.credits += parseFloat(credits);
+    await customer.save();
 
     res.status(200).json({ message: "Credits transferred" });
   } catch (error) {
@@ -117,15 +110,12 @@ const purchaseRequestFromAdmin = async (req, res) => {
 
     // Create the request
     const request = new Request({
-      user: _id,
+      By: _id,
+      To: adminId,
       credits,
       status: "pending",
     });
     await request.save();
-
-    // Update client and admin documents
-    await client.updateOne({ $push: { sendRequests: adminId } });
-    await admin.updateOne({ $push: { receiveRequests: _id } });
 
     return res.status(200).json({ message: "Request sent successfully" });
   } catch (error) {
@@ -136,9 +126,9 @@ const purchaseRequestFromAdmin = async (req, res) => {
 const getRequests = async (req, res) => {
   const user = req.user._id;
 
-  const requests = await Request.find({ user }).populate("user", {
+  const requests = await Request.find({ By: user }).populate("To", {
     name: 1,
-    _id: 1,
+    // _id: 1,
   });
 
   if (!requests) {
@@ -157,16 +147,13 @@ const getCustomerRequests = async (req, res) => {
   try {
     const user = req.user._id;
 
-    const requests = await User.findById(user).select("receiveRequests");
+    const requests = await Request.find({To: user}).populate({path: "By", select: "name mobile" });
 
-    const respData = await Promise.all(requests?.receiveRequests?.map((requestId) => {
-      return Request.find({user: requestId}).populate({path:"user", select: "name mobile"});
-    }))
-
+    console.log(requests);
     if (!requests) throw new Error("there are no Requests.");
 
     return res.status(200).json({
-      data: respData.flat(),
+      data: requests,
       message: "requests fetched successfully",
     });
   } catch (error) {
@@ -177,6 +164,76 @@ const getCustomerRequests = async (req, res) => {
   }
 };
 
+const acceptCustomerCreditRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const request = await Request.findById(requestId);
+    const clientId = req.user._id;
+
+    if (!request) {
+      throw new Error("Request not found");
+    }
+
+    const customerId = request.By;
+    const user = await User.findById(customerId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await createTransaction(
+      "transfer",
+      clientId,
+      customerId,
+      request.credits,
+      "completed",
+      null,
+      null
+    );
+
+    user.credits += request.credits;
+    await user.save();
+
+    request.status = "completed";
+    await request.save();
+
+    res.status(200).json({
+      message: "Request accepted successfully",
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const rejectCustomerCreditRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const request = await Request.findById(requestId);
+    if (!request) {
+      throw new Error("Request not found");
+    }
+
+    const clientId = request.By;
+
+    const user = await User.findById(clientId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    request.status = "rejected";
+    await request.save();
+
+    res.status(200).json({
+      message: "Request rejected successfully",
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getClient,
   createCustomer,
@@ -184,4 +241,6 @@ module.exports = {
   purchaseRequestFromAdmin,
   getRequests,
   getCustomerRequests,
+  acceptCustomerCreditRequest,
+  rejectCustomerCreditRequest
 };

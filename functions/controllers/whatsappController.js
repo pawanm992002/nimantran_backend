@@ -19,42 +19,40 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 const clientPersonal = new Client();
+
 // {
 //   puppeteer: { headless: false },
-//   session: null  // This will force re-authentication
-//   puppeteer: {
-//     headless: false,
-//     devtools: true, // Opens the Chrome devtools
-//     args: ["--no-sandbox", "--disable-setuid-sandbox"],
-//   },
+//   session: null,
 // }
-let qrCodeData = null;
 
-clientPersonal.on("qr", (qr) => {
-  qrcode.toDataURL(qr, (err, url) => {
-    qrCodeData = url;
-  });
-});
-clientPersonal.on("ready", () => {
-  console.log("Client is ready!");
-});
-clientPersonal.on("auth_failure", (msg) => {
-  // Fired if authentication fails
-  console.log("Authentication failure:");
-});
-clientPersonal.on("disconnected", (reason) => {
-  // Fired when the client is disconnected from the WhatsApp Web
-  console.log("Client was logged out:");
-});
-
-clientPersonal.initialize();
+// clientPersonal.on("ready", () => {
+//   console.log("Client is ready!");
+// });
+// clientPersonal.on("auth_failure", (msg) => {
+//   // Fired if authentication fails
+//   console.log("Authentication failure:");
+// });
+// clientPersonal.on("disconnected", (reason) => {
+//   // Fired when the client is disconnected from the WhatsApp Web
+//   console.log("Client was logged out:");
+// });
 
 const generateQR = (req, res) => {
-  if (!qrCodeData) {
-    res.status(400).send({ qrCode: null });
-  } else {
-    res.status(200).send({ qrCode: qrCodeData });
-  }
+  let qrCodeData = null;
+  const clientPersonalPromise = clientPersonal.initialize();
+
+  clientPersonal.on("qr", (qr) => {
+    qrcode.toDataURL(qr, (err, url) => {
+      qrCodeData = url;
+    });
+  });
+  clientPersonalPromise
+    .then(() => {
+      res.status(200).send({ qrCode: qrCodeData });
+    })
+    .catch(() => {
+      res.status(400).send({ qrCode: null });
+    });
 };
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
