@@ -32,25 +32,47 @@ let clientPersonal;
 //   console.log("Client was logged out:");
 // });
 
+// const generateQR = (req, res) => {
+//   clientPersonal = new Client({
+//     puppeteer: { headless: false },
+//     session: null,
+//   });
+//   let qrCodeData = null;
+//   const clientPersonalPromise = clientPersonal.initialize();
+
+//   clientPersonal.on("qr", (qr) => {
+//     qrcode.toDataURL(qr, (err, url) => {
+//       qrCodeData = url;
+//     });
+//   });
+//   clientPersonalPromise
+//     .then(() => {
+//       res.status(200).send({ qrCode: qrCodeData });
+//     })
+//     .catch(() => {
+//       res.status(400).send({ qrCode: null });
+//     });
+// };
+
 const generateQR = (req, res) => {
   clientPersonal = new Client({
-    puppeteer: { headless: false },
+    puppeteer: { headless: true },
     session: null,
   });
-  let qrCodeData = null;
-  const clientPersonalPromise = clientPersonal.initialize();
 
   clientPersonal.on("qr", (qr) => {
     qrcode.toDataURL(qr, (err, url) => {
-      qrCodeData = url;
+      if (err) {
+        return res.status(400).send({ qrCode: null, error: "Failed to generate QR code" });
+      }
+      res.status(200).send({ qrCode: url });
     });
   });
-  clientPersonalPromise
-    .then(() => {
-      res.status(200).send({ qrCode: qrCodeData });
-    })
+
+  clientPersonal
+    .initialize()
     .catch(() => {
-      res.status(400).send({ qrCode: null });
+      res.status(400).send({ qrCode: null, error: "Failed to initialize client" });
     });
 };
 
