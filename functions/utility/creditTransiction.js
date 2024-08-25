@@ -60,7 +60,7 @@ const createTransaction = async (
     // Return the saved transaction
     return transaction;
   } catch (error) {
-    return error;
+    throw error;
   }
 };
 

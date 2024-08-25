@@ -18,12 +18,7 @@ const { invitationTracker } = require("../models/InvitationTracker");
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
-const clientPersonal = new Client();
-
-// {
-//   puppeteer: { headless: false },
-//   session: null,
-// }
+let clientPersonal;
 
 // clientPersonal.on("ready", () => {
 //   console.log("Client is ready!");
@@ -38,6 +33,10 @@ const clientPersonal = new Client();
 // });
 
 const generateQR = (req, res) => {
+  clientPersonal = new Client({
+    puppeteer: { headless: false },
+    session: null,
+  });
   let qrCodeData = null;
   const clientPersonalPromise = clientPersonal.initialize();
 
