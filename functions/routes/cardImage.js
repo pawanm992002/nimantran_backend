@@ -131,73 +131,82 @@ router.post(
       if (!texts || !inputPath) {
         return res
           .status(400)
-          .json({ error: "Please provide the guest list and video." });
+          .json({ error: "Please provide the guest list and Image." });
       }
 
-      const zipFilename = `processed_images.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
 
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
+      setImmediate(async () => {
+        const zipFilename = `processed_images.zip`;
+        const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
-      archive.on("error", (err) => {
-        throw err;
-      });
+        const output = fs.createWriteStream(zipPath);
+        const archive = archiver("zip", { zlib: { level: 9 } });
 
-      archive.pipe(output);
+        archive.on("error", (err) => {
+          throw err;
+        });
 
-      await Promise.all(
-        guestNames.map(async (val, i) => {
-          const url = await createImagesForGuest(
-            inputPath,
-            texts,
-            scalingFont,
-            scalingH,
-            scalingW,
-            val,
-            archive,
+        archive.pipe(output);
+
+        await Promise.all(
+          guestNames.map(async (val) => {
+            await createImagesForGuest(
+              inputPath,
+              texts,
+              scalingFont,
+              scalingH,
+              scalingW,
+              val,
+              archive,
+              eventId,
+              isSample
+            );
+
+            // Send update to the client
+            res.write(`data: ${JSON.stringify(val)}\n\n`);
+          })
+        );
+
+        await archive.finalize();
+
+        output.on("close", async () => {
+          const zipBuffer = fs.readFileSync(zipPath);
+          const zipUrl = await uploadFileToFirebase(
+            zipBuffer,
+            zipFilename,
             eventId,
             isSample
           );
-        })
-      );
+          fs.unlinkSync(zipPath);
 
-      await archive.finalize();
+          if (isSample !== "true") {
+            const customerId = await addOrUpdateGuests(
+              eventId,
+              guestNames,
+              zipUrl
+            );
 
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
-          eventId,
-          isSample
-        );
-        fs.unlinkSync(zipPath);
+            await createTransaction(
+              "image",
+              req.user._id,
+              null,
+              amountSpend,
+              "completed",
+              eventId,
+              customerId
+            );
+          }
 
-        if (isSample !== "true") {
-          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
-
-          await createTransaction(
-            "image",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
-            eventId,
-            customerId
-          );
-        }
-        
-        res.status(200).json({
-          zipUrl,
-          videoUrls: guestNames,
+          fs.unlinkSync(inputPath);
+          res.end();
         });
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
-    } finally {
-      fs.unlinkSync(inputPath);
-    }
+    } 
   }
 );
 

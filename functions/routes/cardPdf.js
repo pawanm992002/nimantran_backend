@@ -31,13 +31,19 @@ const createPdfForGuest = async (
   scalingW,
   val,
   archive,
-  eventId, 
+  eventId,
   isSample
 ) => {
   try {
     const streams = await Promise.all(
       texts.map(async (text) => {
-        const stream = await createCanvasWithCenteredText(val, text, scalingFont, scalingH, scalingW);
+        const stream = await createCanvasWithCenteredText(
+          val,
+          text,
+          scalingFont,
+          scalingH,
+          scalingW
+        );
         return { ...text, stream };
       })
     );
@@ -47,30 +53,27 @@ const createPdfForGuest = async (
 
     const pages = pdfDoc.getPages();
 
-    await Promise.all(streams.map(async (text) => {
-      const img = await pdfDoc.embedPng(text.stream);
-      const page = pages[text.page];
+    await Promise.all(
+      streams.map(async (text) => {
+        const img = await pdfDoc.embedPng(text.stream);
+        const page = pages[text.page];
 
-      page.drawImage(img, {
-        x: text.position.x * scalingW,
-        y:
-          page.getHeight() -
-          text.position.y * scalingH -
-          text.size.height * scalingH,
-      });
-    }))
+        page.drawImage(img, {
+          x: text.position.x * scalingW,
+          y:
+            page.getHeight() -
+            text.position.y * scalingH -
+            text.size.height * scalingH,
+        });
+      })
+    );
 
     const buffer = await pdfDoc.save();
 
     const filename = `${val?.name}_${val?.mobileNumber}.pdf`;
     archive.append(new Buffer.from(buffer), { name: filename });
 
-    const url = await uploadFileToFirebase(
-      buffer,
-      filename,
-      eventId,
-      isSample
-    );
+    const url = await uploadFileToFirebase(buffer, filename, eventId, isSample);
     val.link = url;
     return url;
   } catch (error) {
@@ -126,68 +129,79 @@ router.post(
           .json({ error: "Please provide the guest list and video." });
       }
 
-      const zipFilename = `processed_pdfs.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
 
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
+      setImmediate(async () => {
+        const zipFilename = `processed_pdfs.zip`;
+        const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
-      archive.on("error", (err) => {
-        throw err;
-      });
+        const output = fs.createWriteStream(zipPath);
+        const archive = archiver("zip", { zlib: { level: 9 } });
 
-      archive.pipe(output);
+        archive.on("error", (err) => {
+          throw err;
+        });
 
-      await Promise.all(
-        guestNames.map(async (val, i) => {
-          const url = await createPdfForGuest(
-            inputPath,
-            texts,
-            scalingFont,
-            scalingH,
-            scalingW,
-            val,
-            archive, eventId, isSample
-          );
-        })
-      );
+        archive.pipe(output);
 
-      await archive.finalize();
+        await Promise.all(
+          guestNames.map(async (val, i) => {
+            await createPdfForGuest(
+              inputPath,
+              texts,
+              scalingFont,
+              scalingH,
+              scalingW,
+              val,
+              archive,
+              eventId,
+              isSample
+            );
 
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
-          eventId,
-          isSample
+            // Send update to the client
+            res.write(`data: ${JSON.stringify(val)}\n\n`);
+          })
         );
-        fs.unlinkSync(zipPath);
 
-        if (isSample !== "true") {
-          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
+        await archive.finalize();
 
-          await createTransaction(
-            "pdf",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
+        output.on("close", async () => {
+          const zipBuffer = fs.readFileSync(zipPath);
+          const zipUrl = await uploadFileToFirebase(
+            zipBuffer,
+            zipFilename,
             eventId,
-            customerId
+            isSample
           );
-        }
+          fs.unlinkSync(zipPath);
 
-        res.status(200).json({
-          zipUrl,
-          videoUrls: guestNames,
+          if (isSample !== "true") {
+            const customerId = await addOrUpdateGuests(
+              eventId,
+              guestNames,
+              zipUrl
+            );
+
+            await createTransaction(
+              "pdf",
+              req.user._id,
+              null,
+              amountSpend,
+              "completed",
+              eventId,
+              customerId
+            );
+          }
+
+          fs.unlinkSync(inputPath);
+          res.end();
         });
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
-    } finally {
-      fs.unlinkSync(inputPath); // Clean up the uploaded PDF file
-    }
+    } 
   }
 );
 

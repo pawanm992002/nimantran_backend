@@ -55,10 +55,11 @@ let clientPersonal;
 // };
 
 const generateQR = (req, res) => {
-  clientPersonal = new Client({
-    puppeteer: { headless: true },
-    session: null,
-  });
+  clientPersonal = new Client();
+  // {
+  //   puppeteer: { headless: true },
+  //   session: null,
+  // }
 
   clientPersonal.on("qr", (qr) => {
     qrcode.toDataURL(qr, (err, url) => {

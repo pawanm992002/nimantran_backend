@@ -337,7 +337,6 @@ const createVideoForGuest = (
         }
       })
       .on("error", (err) => {
-        console.log(err)
         reject(err);
       })
       .run();
@@ -369,6 +368,7 @@ router.post(
       } = req.body;
 
       const eventId = req?.query?.eventId;
+      if (!eventId) throw new Error("Required Event Id");
       let { guestNames } = req.body;
       let amountSpend;
 
@@ -399,85 +399,97 @@ router.post(
           throw new Error("Insufficient Balance");
       }
 
-      if (!eventId) throw new Error("Required Event Id");
-
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
         return res
           .status(400)
-          .json({ error: "Please provide the guest list and video." });
+          .json({ error: "Please provide the guest list and Video." });
       }
 
-      const zipFilename = `processed_videos.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
 
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
+      setImmediate(async () => {
+        const zipFilename = `processed_videos.zip`;
+        const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
-      archive.on("error", (err) => {
-        throw err;
-      });
+        const output = fs.createWriteStream(zipPath);
+        const archive = archiver("zip", { zlib: { level: 9 } });
 
-      archive.pipe(output);
+        archive.on("error", (err) => {
+          throw err;
+        });
 
-      // Control concurrency to avoid overwhelming the server
-      const concurrencyLimit = 10;
-      const chunks = chunkArray(guestNames, concurrencyLimit);
+        archive.pipe(output);
 
-      for (const chunk of chunks) {
-        await Promise.all(
-          chunk.map(async (val, i) => {
-            await createVideoForGuest(
-              inputPath,
-              texts,
-              scalingFont,
-              scalingH,
-              scalingW,
-              val,
-              i,
-              videoDuration,
-              archive,
-              isSample,
-              eventId
-            );
-          })
-        );
-      }
+        // Control concurrency to avoid overwhelming the server
+        const concurrencyLimit = 10;
+        const chunks = chunkArray(guestNames, concurrencyLimit);
 
-      await archive.finalize();
+        for (const chunk of chunks) {
+          await Promise.all(
+            chunk.map(async (val, i) => {
+              await createVideoForGuest(
+                inputPath,
+                texts,
+                scalingFont,
+                scalingH,
+                scalingW,
+                val,
+                i,
+                videoDuration,
+                archive,
+                isSample,
+                eventId
+              );
 
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
-          eventId,
-          isSample
-        );
-
-        if (isSample !== "true") {
-          const customerId = await addOrUpdateGuests(eventId, guestNames, zipUrl);
-          await createTransaction(
-            "video",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
-            eventId,
-            customerId
+              console.log(i);
+              // Send update to the client
+              res.write(`data: ${JSON.stringify(val)}\n\n`);
+            })
           );
         }
-        res.status(200).json({
-          zipUrl,
-          videoUrls: guestNames,
+
+        await archive.finalize();
+
+        output.on("close", async () => {
+          const zipBuffer = fs.readFileSync(zipPath);
+          const zipUrl = await uploadFileToFirebase(
+            zipBuffer,
+            zipFilename,
+            eventId,
+            isSample
+          );
+
+          if (isSample !== "true") {
+            const customerId = await addOrUpdateGuests(
+              eventId,
+              guestNames,
+              zipUrl
+            );
+            await createTransaction(
+              "video",
+              req.user._id,
+              null,
+              amountSpend,
+              "completed",
+              eventId,
+              customerId
+            );
+          }
+          // res.status(200).json({
+          //   zipUrl,
+          //   videoUrls: guestNames,
+          // });
+          fs.unlinkSync(inputPath);
+          res.end();
         });
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
-    } finally {
-      fs.unlinkSync(inputPath); // Clean up the uploaded video file
-    }
+    } 
   }
 );
 
