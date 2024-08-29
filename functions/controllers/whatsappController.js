@@ -54,28 +54,44 @@ let clientPersonal;
 //     });
 // };
 
-const generateQR = (req, res) => {
-  clientPersonal = new Client();
-  // {
-  //   puppeteer: { headless: true },
-  //   session: null,
-  // }
+const generateQR = async (req, res) => {
+  const clientPersonal = new Client();
+  let qrCodeGenerated = false;
 
-  clientPersonal.on("qr", (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (err) {
-        return res.status(400).send({ qrCode: null, error: "Failed to generate QR code" });
-      }
-      res.status(200).send({ qrCode: url });
-    });
-  });
+  try {
+    const qrCodePromise = new Promise((resolve, reject) => {
+      clientPersonal.on("qr", (qr) => {
+        qrcode.toDataURL(qr, (err, url) => {
+          if (err) {
+            reject(new Error("Failed to generate QR code"));
+          } else {
+            qrCodeGenerated = true;
+            resolve(url);
+          }
+        });
+      });
 
-  clientPersonal
-    .initialize()
-    .catch(() => {
-      res.status(400).send({ qrCode: null, error: "Failed to initialize client" });
+      clientPersonal.initialize().catch((err) => {
+        reject(new Error("Failed to initialize client"));
+      });
     });
+
+    // Wait for QR code to be generated, but set a timeout to avoid hanging indefinitely
+    const qrCodeUrl = await Promise.race([
+      qrCodePromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("QR code generation timed out")), 10000)), // 10-second timeout
+    ]);
+
+    if (qrCodeGenerated) {
+      res.status(200).send({ qrCode: qrCodeUrl });
+    } else {
+      res.status(400).send({ qrCode: null, error: "QR code generation timed out" });
+    }
+  } catch (error) {
+    res.status(400).send({ qrCode: null, error: error.message });
+  }
 };
+
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
   try {
