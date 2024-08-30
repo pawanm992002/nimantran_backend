@@ -3,95 +3,33 @@ const { Event } = require("../models/Event");
 const { Client, MessageMedia } = require("whatsapp-web.js"); // for personal messages
 const qrcode = require("qrcode");
 const { invitationTracker } = require("../models/InvitationTracker");
-// const fs = require("fs");
-// const path = require("path");
-// const axios = require('axios');
-// const os = require('os');
-
-// const UPLOAD_DIR = os.tmpdir()
-// const mediaUploadDir = path.join(UPLOAD_DIR, "mediaUpload")
-
-// if (!fs.existsSync(mediaUploadDir)) {
-//   fs.mkdirSync(mediaUploadDir);
-// }
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
+
 let clientPersonal;
 
-// clientPersonal.on("ready", () => {
-//   console.log("Client is ready!");
-// });
-// clientPersonal.on("auth_failure", (msg) => {
-//   // Fired if authentication fails
-//   console.log("Authentication failure:");
-// });
-// clientPersonal.on("disconnected", (reason) => {
-//   // Fired when the client is disconnected from the WhatsApp Web
-//   console.log("Client was logged out:");
-// });
-
-// const generateQR = (req, res) => {
-//   clientPersonal = new Client({
-//     puppeteer: { headless: false },
-//     session: null,
-//   });
-//   let qrCodeData = null;
-//   const clientPersonalPromise = clientPersonal.initialize();
-
-//   clientPersonal.on("qr", (qr) => {
-//     qrcode.toDataURL(qr, (err, url) => {
-//       qrCodeData = url;
-//     });
-//   });
-//   clientPersonalPromise
-//     .then(() => {
-//       res.status(200).send({ qrCode: qrCodeData });
-//     })
-//     .catch(() => {
-//       res.status(400).send({ qrCode: null });
-//     });
-// };
-
 const generateQR = async (req, res) => {
-  const clientPersonal = new Client();
-  let qrCodeGenerated = false;
+  clientPersonal = new Client({
+    puppeteer: {
+      headless: true, // Ensure headless mode
+      executablePath: '/usr/bin/google-chrome-stable',
+    },
+    session: null,
+  });
 
-  try {
-    const qrCodePromise = new Promise((resolve, reject) => {
-      clientPersonal.on("qr", (qr) => {
-        qrcode.toDataURL(qr, (err, url) => {
-          if (err) {
-            reject(new Error("Failed to generate QR code"));
-          } else {
-            qrCodeGenerated = true;
-            resolve(url);
-          }
-        });
-      });
-
-      clientPersonal.initialize().catch((err) => {
-        reject(new Error("Failed to initialize client"));
-      });
+  clientPersonal.on("qr", (qr) => {
+    qrcode.toDataURL(qr, (err, url) => {
+      if (err) {
+        return res.status(400).send({ message: 'Error generating QR code' });
+      }
+      res.status(200).send({ qrCode: url });
     });
+  })
 
-    // Wait for QR code to be generated, but set a timeout to avoid hanging indefinitely
-    const qrCodeUrl = await Promise.race([
-      qrCodePromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("QR code generation timed out")), 10000)), // 10-second timeout
-    ]);
-
-    if (qrCodeGenerated) {
-      res.status(200).send({ qrCode: qrCodeUrl });
-    } else {
-      res.status(400).send({ qrCode: null, error: "QR code generation timed out" });
-    }
-  } catch (error) {
-    res.status(400).send({ qrCode: null, error: error.message });
-  }
+  await clientPersonal.initialize();
 };
-
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
   try {
@@ -104,27 +42,8 @@ const individualWhatsuppPersonalInvite = async (req, res) => {
     const caption = "This is a Invitation Message";
     const { eventId } = req.query;
 
-    // Define a temporary file path
-    // const fileName = path.basename(mediaUrl.split("?")[0]);
-    // const mediaPath = path.join(mediaUploadDir, fileName);
-
-    // // Download the media from Firebase URL and save it temporarily
-    // const response = await axios({
-    //   url: mediaUrl,
-    //   method: "GET",
-    //   responseType: "stream",
-    // });
-
-    // await new Promise((resolve, reject) => {
-    //   const writer = fs.createWriteStream(mediaPath);
-    //   response.data.pipe(writer);
-    //   writer.on("finish", resolve);
-    //   writer.on("error", reject);
-    // });
-
     // Fetch the media from the Firebase URL
     const media = await MessageMedia.fromUrl(mediaUrl);
-    // const media = MessageMedia.fromFilePath(mediaPath);
 
     if (!media) {
       throw new Error("Failed to fetch media from the provided URL.");
@@ -295,3 +214,44 @@ module.exports = {
   bulkWhatsuppPersonalInvite,
   bulkWhatsuppBusinessInvite,
 };
+
+
+
+
+
+
+// /////////////////////////////////////////////////////////////////////////////////////////
+// const chromium = require('chrome-aws-lambda');
+// const { Client } = require('whatsapp-web.js');
+// const qrcode = require('qrcode');
+
+// const generateQR = async (req, res) => {
+//   try {
+//     const executablePath = await chromium.executablePath;
+
+//     const clientPersonal = new Client({
+//       puppeteer: {
+//         headless: true,
+//         args: chromium.args,
+//         executablePath: executablePath,
+//         defaultViewport: chromium.defaultViewport,
+//       },
+//       session: null,
+//     });
+
+//     clientPersonal.on("qr", (qr) => {
+//       qrcode.toDataURL(qr, (err, url) => {
+//         if (err) {
+//           return res.status(400).send({ message: 'Error generating QR code' });
+//         }
+//         res.status(200).send({ qrCode: url });
+//       });
+//     });
+
+//     await clientPersonal.initialize();
+//   } catch (error) {
+//     res.status(500).send({ message: 'Error initializing client', error: error.toString() });
+//   }
+// };
+
+// module.exports = generateQR;
