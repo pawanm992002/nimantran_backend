@@ -402,9 +402,7 @@ router.post(
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
-        return res
-          .status(400)
-          .json({ error: "Please provide the guest list and Video." });
+        throw new Error("Please provide the guest list and video.")
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -444,8 +442,7 @@ router.post(
                 isSample,
                 eventId
               );
-
-              console.log(i);
+              
               // Send update to the client
               res.write(`data: ${JSON.stringify(val)}\n\n`);
             })

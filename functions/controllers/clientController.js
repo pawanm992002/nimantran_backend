@@ -149,7 +149,6 @@ const getCustomerRequests = async (req, res) => {
 
     const requests = await Request.find({To: user}).populate({path: "By", select: "name mobile" });
 
-    console.log(requests);
     if (!requests) throw new Error("there are no Requests.");
 
     return res.status(200).json({

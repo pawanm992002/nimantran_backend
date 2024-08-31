@@ -8,6 +8,10 @@ const createEvent = async (req, res) => {
     // const csvFilePath = req.file?.path;
     // const guests = csvFilePath ? await processCsvFile(csvFilePath) : [];
     const customer = await User.findById(customerId);
+    if (!customer) {
+      throw new Error("User not found");
+    }
+    
     const event = new Event({
       customerId,
       eventName,
@@ -16,25 +20,21 @@ const createEvent = async (req, res) => {
       editType
     });
 
-    if (!customer) {
-      return res.status(400).json({
-        message: "User not found",
-      });
-    }
 
     const response = await event.save();
+    if(!response) {
+      throw new Error("Event not Created");
+    }
     customer.events.push(event);
     await customer.save(); // Save the user after pushing the event
 
     res.status(201).json({
       data: event,
-      success: true,
       message: "Event created successfully",
     });
   } catch (error) {
     res.status(400).json({
-      error: error.message,
-      message: "Error creating event",
+      message: error.message,
     });
   }
 };

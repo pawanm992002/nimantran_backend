@@ -6,6 +6,7 @@ const { createCanvas, registerFont, deregisterAllFonts } = require("canvas");
 const { Event } = require("../models/Event");
 const { app, firebaseStorage } = require("../firebaseConfig");
 const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
+const sharp = require("sharp");
 
 const TEMP_DIR = os.tmpdir() || "/tmp";
 
@@ -51,7 +52,7 @@ const addOrUpdateGuests = async (eventId, guests, zipUrl) => {
       throw new Error("Event not found");
     }
 
-    event.zipUrl = zipUrl
+    event.zipUrl = zipUrl;
     guests.forEach((guest) => {
       const existingGuestIndex = event.guests.findIndex(
         (g) => g.mobileNumber === guest.mobileNumber
@@ -70,7 +71,7 @@ const addOrUpdateGuests = async (eventId, guests, zipUrl) => {
       }
     });
 
-    const updatedEvent = await event.save();
+    await event.save();
     return event.customerId;
   } catch (error) {
     return error;
@@ -82,73 +83,93 @@ const createCanvasWithCenteredText = async (
   property,
   scalingFont,
   scalingH,
-  scalingW
+  scalingW,
+  quality = 1
 ) => {
-  // Download the Google font and set the path
-  const fontPath = await downloadGoogleFont(property.fontFamily);
+  try {
+    // Download the Google font and set the path
+    const fontPath = await downloadGoogleFont(property.fontFamily);
 
-  // Parse the initial font size with scaling
-  let fontSize = parseInt(property.fontSize * scalingFont);
+    // Parse the initial font size with scaling
+    let fontSize = parseInt(property.fontSize * scalingFont * quality);
 
-  // Build the font string based on the initial size
-  const buildFontString = (size) => {
-    return `${property.fontStyle === "italic" ? "italic" : ""} ${
-      property.fontWeight
-    } ${size}px ${property.fontFamily}`;
-  };
+    // Build the font string based on the initial size
+    const buildFontString = (size) => {
+      return `${property.fontStyle === "italic" ? "italic" : ""} ${
+        property.fontWeight
+      } ${size}px ${property.fontFamily}`;
+    };
 
-  // Register the font for use in the canvas
-  registerFont(fontPath, { family: property.fontFamily });
+    // Register the font for use in the canvas
+    registerFont(fontPath, { family: property.fontFamily });
 
-  // Replace template placeholders in text with values
-  let tempTextName = property.text.replace(
-    /{(\w+)}/g,
-    (match, p1) => val[p1] || ""
-  );
+    // Replace template placeholders in text with values
+    let tempTextName = property.text.replace(
+      /{(\w+)}/g,
+      (match, p1) => val[p1] || ""
+    );
 
-  // Set the canvas size according to the scaled width and height
-  const width = property.size.width * scalingW;
-  const height = property.size.height * scalingH;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
+    // Set the canvas size according to the scaled width and height
+    const width = property.size.width * scalingW * quality;
+    const height = property.size.height * scalingH * quality;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext("2d");
 
-  // Fill the background if a color is specified
-  if (property.backgroundColor !== "none") {
-    ctx.fillStyle = property.backgroundColor;
-    ctx.fillRect(0, 0, width, height);
+    // Fill the background if a color is specified
+    if (property.backgroundColor !== "none") {
+      ctx.fillStyle = property.backgroundColor;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    // Set the initial font color
+    ctx.fillStyle = property.fontColor;
+
+    // Set the font and adjust size if the text exceeds the canvas width
+    ctx.font = buildFontString(fontSize);
+
+    while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
+      fontSize--; // Decrease the font size
+      ctx.font = buildFontString(fontSize); // Rebuild the font string with the new size
+    }
+
+    // Set text alignment and baseline
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Calculate the center of the canvas for text placement
+    const x = width / 2;
+    const y = height / 2;
+
+    // Draw the text onto the canvas
+    ctx.fillText(tempTextName, x, y);
+
+    // Add underline if isUnderlined is true
+    if (property.underline === "underline") {
+      const textWidth = ctx.measureText(tempTextName).width;
+      const underlineHeight = fontSize / 15; // Set underline height relative to font size
+      const underlineY = y + fontSize / 2 + underlineHeight; // Adjust position below text
+
+      ctx.strokeStyle = property.fontColor; // Use the same color as the text
+      ctx.lineWidth = underlineHeight; // Thickness of the underline
+      ctx.beginPath();
+      ctx.moveTo(x - textWidth / 2, underlineY); // Start position of the underline
+      ctx.lineTo(x + textWidth / 2, underlineY); // End position of the underline
+      ctx.stroke(); // Draw the underline
+    }
+
+    return await sharp(canvas.toBuffer("image/png"))
+      .sharpen() // Apply sharpening
+      .toBuffer();
+  } catch (error) {
+    throw error;
   }
-
-  // Set the initial font color
-  ctx.fillStyle = property.fontColor;
-
-  // Set the font and adjust size if the text exceeds the canvas width
-  ctx.font = buildFontString(fontSize);
-
-  while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
-    fontSize--;  // Decrease the font size
-    ctx.font = buildFontString(fontSize);  // Rebuild the font string with the new size
-  }
-
-  // Set text alignment and baseline
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // Calculate the center of the canvas for text placement
-  const x = width / 2;
-  const y = height / 2;
-  
-  // Draw the text onto the canvas
-  ctx.fillText(tempTextName, x, y);
-
-  // Return the canvas buffer as an image
-  return canvas.toBuffer();
 };
 
 const uploadFileToFirebase = async (
   fileBuffer,
   filename,
   eventId,
-  isSample,
+  isSample
 ) => {
   try {
     let storageRef;
@@ -159,13 +180,11 @@ const uploadFileToFirebase = async (
     }
     const snapshot = await uploadBytes(storageRef, fileBuffer);
     return await getDownloadURL(snapshot.ref);
-
   } catch (error) {
     console.error("Error uploading file to Firebase:", error);
     throw error;
   }
 };
-
 
 module.exports = {
   downloadGoogleFont,

@@ -42,7 +42,8 @@ const createPdfForGuest = async (
           text,
           scalingFont,
           scalingH,
-          scalingW
+          scalingW,
+          5
         );
         return { ...text, stream };
       })
@@ -64,6 +65,9 @@ const createPdfForGuest = async (
             page.getHeight() -
             text.position.y * scalingH -
             text.size.height * scalingH,
+          width: text.size.width * scalingW,
+          height: text.size.height * scalingH,
+          opacity: 1.0
         });
       })
     );
@@ -124,9 +128,7 @@ router.post(
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
-        return res
-          .status(400)
-          .json({ error: "Please provide the guest list and video." });
+        throw new Error("Please provide the guest list and video.");
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -201,7 +203,7 @@ router.post(
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
-    } 
+    }
   }
 );
 

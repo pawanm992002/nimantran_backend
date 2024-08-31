@@ -129,9 +129,7 @@ router.post(
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
-        return res
-          .status(400)
-          .json({ error: "Please provide the guest list and Image." });
+        throw new Error("Please provide the guest list and video.")
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -152,7 +150,7 @@ router.post(
         archive.pipe(output);
 
         await Promise.all(
-          guestNames.map(async (val) => {
+          guestNames?.map(async (val) => {
             await createImagesForGuest(
               inputPath,
               texts,
