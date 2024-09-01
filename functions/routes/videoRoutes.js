@@ -378,7 +378,7 @@ router.post(
       }`;
       fs.writeFileSync(inputPath, inputFileName.buffer);
 
-      if(textProperty?.length === 0) {
+      if (textProperty?.length === 0) {
         throw new Error("First Put some text box");
       }
 
@@ -389,7 +389,19 @@ router.post(
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
           {
-            name: "Wolf eschlegelst einhausen berger dorff",
+            name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "Raj",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "Kushagra Nalwaya",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "HARSHIL PAGARIA",
             mobileNumber: "913647683694",
           },
         ];
@@ -404,7 +416,7 @@ router.post(
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
-        throw new Error("Please provide the guest list and video.")
+        throw new Error("Please provide the guest list and video.");
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -444,7 +456,7 @@ router.post(
                 isSample,
                 eventId
               );
-              
+
               // Send update to the client
               res.write(`data: ${JSON.stringify(val)}\n\n`);
             })
@@ -488,7 +500,7 @@ router.post(
     } catch (error) {
       res.status(400).json({ message: error.message });
     } finally {
-      if(!fs.existsSync(inputPath)) {
+      if (!fs.existsSync(inputPath)) {
         fs.unlinkSync(inputPath);
       }
     }

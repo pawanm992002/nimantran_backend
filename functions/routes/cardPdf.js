@@ -67,7 +67,7 @@ const createPdfForGuest = async (
             text.size.height * scalingH,
           width: text.size.width * scalingW,
           height: text.size.height * scalingH,
-          opacity: 1.0
+          opacity: 1.0,
         });
       })
     );
@@ -98,11 +98,10 @@ router.post(
       const eventId = req?.query?.eventId;
       if (!eventId) throw new Error("Required Event Id");
 
-      
       let amountSpend;
       let { guestNames } = req.body;
-      
-      if(textProperty?.length === 0) {
+
+      if (textProperty?.length === 0) {
         throw new Error("First Put some text box");
       }
 
@@ -117,7 +116,19 @@ router.post(
         guestNames = [
           { name: "pawan mishra", mobileNumber: "912674935684" },
           {
-            name: "Wolf eschlegelst einhausen berger dorff",
+            name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "Raj",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "Kushagra Nalwaya",
+            mobileNumber: "913647683694",
+          },
+          {
+            name: "HARSHIL PAGARIA",
             mobileNumber: "913647683694",
           },
         ];
@@ -208,7 +219,7 @@ router.post(
       console.log(error);
       res.status(400).json({ message: error.message });
     } finally {
-      if(!fs.existsSync(inputPath)) {
+      if (!fs.existsSync(inputPath)) {
         fs.unlinkSync(inputPath);
       }
     }
