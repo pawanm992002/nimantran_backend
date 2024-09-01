@@ -97,13 +97,17 @@ router.post(
 
       const eventId = req?.query?.eventId;
       if (!eventId) throw new Error("Required Event Id");
+
+      
       let amountSpend;
       let { guestNames } = req.body;
+      
+      if(textProperty?.length === 0) {
+        throw new Error("First Put some text box");
+      }
 
       const inputFileName = req.files.find((val) => val.fieldname === "pdf");
-
       inputPath = `${path.join(PDF_UPLOAD_DIR)}/${inputFileName.originalname}`;
-
       fs.writeFileSync(inputPath, inputFileName.buffer);
 
       const user = await User.findById(req.user._id);
@@ -197,12 +201,16 @@ router.post(
             );
           }
 
-          fs.unlinkSync(inputPath);
           res.end();
         });
       });
     } catch (error) {
+      console.log(error);
       res.status(400).json({ message: error.message });
+    } finally {
+      if(!fs.existsSync(inputPath)) {
+        fs.unlinkSync(inputPath);
+      }
     }
   }
 );

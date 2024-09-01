@@ -100,12 +100,14 @@ router.post(
       let { guestNames } = req.body;
 
       const inputFileName = req.files.find((val) => val.fieldname === "video");
-
       inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
         inputFileName.originalname
       }`;
-
       fs.writeFileSync(inputPath, inputFileName.buffer);
+
+      if(textProperty?.length === 0) {
+        throw new Error("First Put some text box");
+      }
 
       const user = await User.findById(req.user._id);
       if (!user) throw new Error("User not found");
@@ -198,13 +200,16 @@ router.post(
             );
           }
 
-          fs.unlinkSync(inputPath);
           res.end();
         });
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
-    } 
+    } finally {
+      if(!fs.existsSync(inputPath)) {
+        fs.unlinkSync(inputPath);
+      }
+    }
   }
 );
 
