@@ -60,7 +60,7 @@ const transferCredit = async (req, res) => {
     if (credits <= 0) {
       throw new Error("Credits must be a positive number");
     }
-    
+
     await createTransaction(
       "transfer",
       req.user._id,
@@ -70,13 +70,13 @@ const transferCredit = async (req, res) => {
       null,
       null
     );
-    
+
     const customer = await User.findOne({
       _id: customerId,
       clientId: req.user._id,
     });
     if (!customer) throw new Error("Customer not found");
-    
+
     customer.credits += parseFloat(credits);
     await customer.save();
 
@@ -147,7 +147,10 @@ const getCustomerRequests = async (req, res) => {
   try {
     const user = req.user._id;
 
-    const requests = await Request.find({To: user}).populate({path: "By", select: "name mobile" });
+    const requests = await Request.find({ To: user }).populate({
+      path: "By",
+      select: "name mobile",
+    });
 
     if (!requests) throw new Error("there are no Requests.");
 
@@ -233,6 +236,59 @@ const rejectCustomerCreditRequest = async (req, res) => {
   }
 };
 
+const getClientCustomers = async (req, res) => {
+  try {
+    const clientId = req.user._id;
+    // Check if client ID is present
+    if (!clientId) {
+      return res.status(404).json({
+        message: "Client not found",
+      });
+    }
+    // Find the client in the database
+    const client = await User.findOne({ _id: clientId });
+    // Check if the client exists
+    if (!client) {
+      return res.status(404).json({
+        message: "Client not found in database",
+      });
+    }
+    // Convert customer IDs to strings
+    const customerIds = client.customers.map((customerId) =>
+      customerId.toString()
+    );
+
+    // Check if there are customer IDs
+    if (!customerIds.length) {
+      return res.status(404).json({
+        message: "No customers associated with client",
+      });
+    }
+    // Find customers in the database
+    const customers = await User.find({ _id: { $in: customerIds } });
+    // Check if customers were found
+    if (!customers.length) {
+      return res.status(404).json({
+        message: "Customers not found in database",
+      });
+    }
+    // Extract customer names
+    const customerNamesAndId = customers.map((customer) => ({
+      name: customer.name,
+      id: customer._id,
+    }));
+
+    return res.status(200).json({
+      customerNamesAndId,
+      message: "Client customers fetched successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message,
+      data: null,
+    });
+  }
+};
 module.exports = {
   getClient,
   createCustomer,
@@ -241,5 +297,6 @@ module.exports = {
   getRequests,
   getCustomerRequests,
   acceptCustomerCreditRequest,
-  rejectCustomerCreditRequest
+  rejectCustomerCreditRequest,
+  getClientCustomers,
 };
