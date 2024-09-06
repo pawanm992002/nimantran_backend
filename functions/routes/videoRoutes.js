@@ -494,6 +494,8 @@ router.post(
           //   zipUrl,
           //   videoUrls: guestNames,
           // });
+          res.write(`zipUrl: ${zipUrl}`);
+
           res.end();
         });
       });

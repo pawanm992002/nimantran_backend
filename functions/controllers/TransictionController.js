@@ -9,14 +9,13 @@ const getAllCustomerTransactions = async (req, res) => {
       transaction = await CreditTransaction.find({
         recieverId: customerId,
         areaOfUse: areaOfUse,
-      })
-        .populate("recieverId", "name");
+      }).populate("recieverId", "name");
     }
 
-    if (['spend'].includes(areaOfUse)) {
+    if (["spend"].includes(areaOfUse)) {
       transaction = await CreditTransaction.find({
         customerId: customerId,
-        areaOfUse: ['image', 'pdf', 'video'],
+        areaOfUse: ["image", "pdf", "video"],
       }).populate("eventId");
     }
 
@@ -32,25 +31,29 @@ const getAllCustomerTransactions = async (req, res) => {
 const getClientTransaction = async (req, res) => {
   try {
     const { _id } = req.user;
-    const { areaOfUse } = req.query;
-    let transaction = [];
 
-    if (areaOfUse === "transfer") {
-      transaction = await CreditTransaction.find({
-        senderId: _id,
-        areaOfUse: areaOfUse,
-      })
-        .populate("recieverId", "name");
-    }
+    // **Combine CreditTransaction queries using $or operator:**
+    const transactions = await CreditTransaction.find({
+      $or: [{ recieverId: _id }, { senderId: _id }],
+    })
+      .sort({ transactionDate: -1 })
+      .populate([
+        { path: "recieverId", select: "name" },
+        { path: "eventId", select: "eventName" },
+      ]);
 
-    if (['spend'].includes(areaOfUse)) {
-      transaction = await CreditTransaction.find({
-        senderId: _id,
-        areaOfUse: ['image', 'pdf', 'video'],
-      }).populate("eventId");
-    }
+    // **Handle transactions with null eventId within the main query:**
+    const transactionsWithNullEventId = transactions.filter((t) => !t.eventId);
 
-    return res.status(200).json(transaction);
+    // **Extract eventNames directly from the main query results:**
+    const eventNames = transactions
+      .filter((t) => t.eventId)
+      .map((t) => t.eventId.eventName);
+
+    const combinedTransactions =
+      transactionsWithNullEventId.concat(transactions);
+
+    return res.status(200).json(combinedTransactions);
   } catch (error) {
     console.error("Error fetching transactions:", error.message);
     return res
@@ -58,7 +61,6 @@ const getClientTransaction = async (req, res) => {
       .json({ message: "Server error. Please try again later." });
   }
 };
-
 const adminTransactions = async (req, res) => {
   try {
     const { _id } = req.user;
@@ -68,20 +70,18 @@ const adminTransactions = async (req, res) => {
     return res.status(200).json({
       message: "all transaction fetched successfully",
       data: transaction,
-      success: true
-    })
-      
+      success: true,
+    });
   } catch (error) {
     console.error("Error fetching transactions:", error.message);
     return res
       .status(400)
       .json({ message: "Server error. Please try again later." });
   }
-
-}
+};
 
 module.exports = {
   getAllCustomerTransactions,
   getClientTransaction,
-  adminTransactions
+  adminTransactions,
 };
