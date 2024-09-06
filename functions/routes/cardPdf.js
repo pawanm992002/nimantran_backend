@@ -13,6 +13,8 @@ const {
 const createTransaction = require("../utility/creditTransiction");
 const { authenticateJWT } = require("../middleware/auth");
 const { User } = require("../models/User");
+const { firebaseStorage } = require("../firebaseConfig");
+const { ref, getBytes } = require("firebase/storage");
 
 const router = express.Router();
 
@@ -49,8 +51,8 @@ const createPdfForGuest = async (
       })
     );
 
-    const inputPdf = await fs.promises.readFile(inputPath);
-    const pdfDoc = await PDFDocument.load(inputPdf);
+    // const inputPdf = await fs.promises.readFile(inputPath);
+    const pdfDoc = await PDFDocument.load(inputPath);
 
     const pages = pdfDoc.getPages();
 
@@ -88,31 +90,39 @@ const createPdfForGuest = async (
 router.post(
   "/",
   authenticateJWT,
-  fileParser({ rawBodyOptions: { limit: "200mb" } }),
   async (req, res) => {
-    let inputPath;
     try {
-      const { textProperty, scalingFont, scalingW, scalingH, isSample } =
-        req.body;
+      let inputPath;
+      const {
+        textProperty,
+        scalingFont,
+        scalingW,
+        scalingH,
+        isSample
+      } = req.body;
+
+      let {guestNames} = req.body;
 
       const eventId = req?.query?.eventId;
       if (!eventId) throw new Error("Required Event Id");
 
+      const storageRef = ref(
+        firebaseStorage,
+        `uploads/${eventId}/inputFile.pdf`
+      );
+
+      inputPath = await getBytes(storageRef); // Get the file as a byte array
+
       let amountSpend;
-      let { guestNames } = req.body;
 
       if (textProperty?.length === 0) {
         throw new Error("First Put some text box");
       }
 
-      const inputFileName = req.files.find((val) => val.fieldname === "pdf");
-      inputPath = `${path.join(PDF_UPLOAD_DIR)}/${inputFileName.originalname}`;
-      fs.writeFileSync(inputPath, inputFileName.buffer);
-
       const user = await User.findById(req.user._id);
       if (!user) throw new Error("User not found");
 
-      if (isSample === "true") {
+      if (isSample) {
         guestNames = [
           { name: "pawan mishra", mobileNumber: "1111111111" },
           {
@@ -133,14 +143,13 @@ router.post(
           },
         ];
       } else {
-        guestNames = JSON.parse(guestNames);
         amountSpend = 0.5 * guestNames.length;
 
         if (user.credits - amountSpend <= 0)
           throw new Error("Insufficient Balance");
       }
 
-      const texts = JSON.parse(textProperty);
+      const texts = textProperty;
 
       if (!texts || !inputPath) {
         throw new Error("Please provide the guest list and video.");
@@ -194,7 +203,7 @@ router.post(
           );
           fs.unlinkSync(zipPath);
 
-          if (isSample !== "true") {
+          if (!isSample) {
             const customerId = await addOrUpdateGuests(
               eventId,
               guestNames,
@@ -216,13 +225,8 @@ router.post(
         });
       });
     } catch (error) {
-      console.log(error);
       res.status(400).json({ message: error.message });
-    } finally {
-      if (!fs.existsSync(inputPath)) {
-        fs.unlinkSync(inputPath);
-      }
-    }
+    } 
   }
 );
 
