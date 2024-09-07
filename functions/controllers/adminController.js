@@ -101,7 +101,8 @@ const getAllUsers = async (req, res) => {
     if (req?.user?.mobile != "0000000000") {
       return res.status(400).json({ msg: "you are not admin", data: null });
     }
-    const users = await User.find().select("-password -__v");
+    const users = await User.find({role: ['client', 'customer']}).select("-password -__v").populate("clientId");
+
     if (!users) {
       return new Error("No users are found");
     }

@@ -2,7 +2,6 @@ const express = require("express");
 const { fileParser } = require("express-multipart-file-parser");
 const fs = require("fs");
 const path = require("path");
-const archiver = require("archiver");
 const { PDFDocument } = require("pdf-lib");
 const os = require("os");
 const {
@@ -32,7 +31,6 @@ const createPdfForGuest = async (
   scalingH,
   scalingW,
   val,
-  archive,
   eventId,
   isSample
 ) => {
@@ -77,9 +75,9 @@ const createPdfForGuest = async (
     const buffer = await pdfDoc.save();
 
     const filename = `${val?.name}_${val?.mobileNumber}.pdf`;
-    archive.append(new Buffer.from(buffer), { name: filename });
 
     const url = await uploadFileToFirebase(buffer, filename, eventId, isSample);
+
     val.link = url;
     return url;
   } catch (error) {
@@ -153,18 +151,6 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     setImmediate(async () => {
-      const zipFilename = `processed_pdfs.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
-
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
-
-      archive.on("error", (err) => {
-        throw err;
-      });
-
-      archive.pipe(output);
-
       // Control concurrency to avoid overwhelming the server
       const concurrencyLimit = 10;
       const chunks = chunkArray(guestNames, concurrencyLimit);
@@ -179,7 +165,6 @@ router.post("/", authenticateJWT, async (req, res) => {
               scalingH,
               scalingW,
               val,
-              archive,
               eventId,
               isSample
             );
@@ -190,38 +175,24 @@ router.post("/", authenticateJWT, async (req, res) => {
         );
       }
 
-      await archive.finalize();
-
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
+      if (!isSample) {
+        const customerId = await addOrUpdateGuests(
           eventId,
-          isSample
+          guestNames,
+          "" // zipUrl,
         );
-        fs.unlinkSync(zipPath);
 
-        if (!isSample) {
-          const customerId = await addOrUpdateGuests(
-            eventId,
-            guestNames,
-            zipUrl
-          );
-
-          await createTransaction(
-            "pdf",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
-            eventId,
-            customerId
-          );
-        }
-        res.write(`zipUrl: ${zipUrl}`);
-        res.end();
-      });
+        await createTransaction(
+          "pdf",
+          req.user._id,
+          null,
+          amountSpend,
+          "completed",
+          eventId,
+          customerId
+        );
+      }
+      res.end();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
