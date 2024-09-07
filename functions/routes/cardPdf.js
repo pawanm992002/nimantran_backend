@@ -98,7 +98,8 @@ router.post(
         scalingFont,
         scalingW,
         scalingH,
-        isSample
+        isSample,
+        fileName
       } = req.body;
 
       let {guestNames} = req.body;
@@ -108,7 +109,7 @@ router.post(
 
       const storageRef = ref(
         firebaseStorage,
-        `uploads/${eventId}/inputFile.pdf`
+        `uploads/${eventId}/${fileName}`
       );
 
       inputPath = await getBytes(storageRef); // Get the file as a byte array
@@ -149,9 +150,7 @@ router.post(
           throw new Error("Insufficient Balance");
       }
 
-      const texts = textProperty;
-
-      if (!texts || !inputPath) {
+      if (!textProperty || !inputPath) {
         throw new Error("Please provide the guest list and video.");
       }
 
@@ -176,7 +175,7 @@ router.post(
           guestNames.map(async (val, i) => {
             await createPdfForGuest(
               inputPath,
-              texts,
+              textProperty,
               scalingFont,
               scalingH,
               scalingW,
@@ -221,7 +220,6 @@ router.post(
             );
           }
           res.write(`zipUrl: ${zipUrl}`);
-
           res.end();
         });
       });

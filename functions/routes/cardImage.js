@@ -1,5 +1,5 @@
 const express = require("express");
-const { fileParser } = require("express-multipart-file-parser");
+const {firebaseStorage} = require("../firebaseConfig");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -13,6 +13,7 @@ const {
 } = require("../utility/proccessing");
 const archiver = require("archiver");
 const { User } = require("../models/User");
+const { ref, getBytes } = require("firebase/storage");
 
 const router = express.Router();
 
@@ -84,145 +85,138 @@ const createImagesForGuest = async (
   }
 };
 
-router.post(
-  "/",
-  authenticateJWT,
-  fileParser({ rawBodyOptions: { limit: "200mb" } }),
-  async (req, res) => {
-    let inputPath;
-    try {
-      const { textProperty, scalingFont, scalingW, scalingH, isSample } =
-        req.body;
+router.post("/", authenticateJWT, async (req, res) => {
+  let inputPath;
+  try {
+    const { textProperty, scalingFont, scalingW, scalingH, isSample, fileName } =
+      req.body;
 
-      const eventId = req?.query?.eventId;
-      if (!eventId) throw new Error("Required Event Id");
-      let amountSpend;
-      let { guestNames } = req.body;
+    let { guestNames } = req.body;
 
-      const inputFileName = req.files.find((val) => val.fieldname === "video");
-      inputPath = `${path.join(VIDEO_UPLOAD_DIR)}/${
-        inputFileName.originalname
-      }`;
-      fs.writeFileSync(inputPath, inputFileName.buffer);
+    const eventId = req?.query?.eventId;
+    if (!eventId) throw new Error("Required Event Id");
+    
+    const storageRef = ref(
+      firebaseStorage,
+      `uploads/${eventId}/${fileName}`
+    );
 
-      if (textProperty?.length === 0) {
-        throw new Error("First Put some text box");
-      }
+    inputPath = await getBytes(storageRef); // Get the file as a byte array
 
-      const user = await User.findById(req.user._id);
-      if (!user) throw new Error("User not found");
+    let amountSpend;
 
-      if (isSample === "true") {
-        guestNames = [
-          { name: "pawan mishra", mobileNumber: "1111111111" },
-          {
-            name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-            mobileNumber: "2222222222",
-          },
-          {
-            name: "Raj",
-            mobileNumber: "3333333333",
-          },
-          {
-            name: "Kushagra Nalwaya",
-            mobileNumber: "4444444444",
-          },
-          {
-            name: "HARSHIL PAGARIA",
-            mobileNumber: "5555555555",
-          },
-        ];
-      } else {
-        guestNames = JSON.parse(guestNames);
-        amountSpend = 0.25 * guestNames.length;
+    if (textProperty?.length === 0) {
+      throw new Error("First Put some text box");
+    }
 
-        if (user.credits - amountSpend <= 0)
-          throw new Error("Insufficient Balance");
-      }
+    const user = await User.findById(req.user._id);
+    if (!user) throw new Error("User not found");
 
-      const texts = JSON.parse(textProperty);
+    if (isSample === "true") {
+      guestNames = [
+        { name: "pawan mishra", mobileNumber: "1111111111" },
+        {
+          name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
+          mobileNumber: "2222222222",
+        },
+        {
+          name: "Raj",
+          mobileNumber: "3333333333",
+        },
+        {
+          name: "Kushagra Nalwaya",
+          mobileNumber: "4444444444",
+        },
+        {
+          name: "HARSHIL PAGARIA",
+          mobileNumber: "5555555555",
+        },
+      ];
+    } else {
+      amountSpend = 0.25 * guestNames.length;
 
-      if (!texts || !inputPath) {
-        throw new Error("Please provide the guest list and video.");
-      }
+      if (user.credits - amountSpend <= 0)
+        throw new Error("Insufficient Balance");
+    }
 
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+    const texts = textProperty;
 
-      setImmediate(async () => {
-        const zipFilename = `processed_images.zip`;
-        const zipPath = path.join(UPLOAD_DIR, zipFilename);
+    if (!texts || !inputPath) {
+      throw new Error("Please provide the guest list and video.");
+    }
 
-        const output = fs.createWriteStream(zipPath);
-        const archive = archiver("zip", { zlib: { level: 9 } });
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-        archive.on("error", (err) => {
-          throw err;
-        });
+    setImmediate(async () => {
+      const zipFilename = `processed_images.zip`;
+      const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
-        archive.pipe(output);
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver("zip", { zlib: { level: 9 } });
 
-        await Promise.all(
-          guestNames?.map(async (val) => {
-            await createImagesForGuest(
-              inputPath,
-              texts,
-              scalingFont,
-              scalingH,
-              scalingW,
-              val,
-              archive,
-              eventId,
-              isSample
-            );
+      archive.on("error", (err) => {
+        throw err;
+      });
 
-            // Send update to the client
-            res.write(`data: ${JSON.stringify(val)}\n\n`);
-          })
-        );
+      archive.pipe(output);
 
-        await archive.finalize();
-
-        output.on("close", async () => {
-          const zipBuffer = fs.readFileSync(zipPath);
-          const zipUrl = await uploadFileToFirebase(
-            zipBuffer,
-            zipFilename,
+      await Promise.all(
+        guestNames?.map(async (val) => {
+          await createImagesForGuest(
+            inputPath,
+            texts,
+            scalingFont,
+            scalingH,
+            scalingW,
+            val,
+            archive,
             eventId,
             isSample
           );
-          fs.unlinkSync(zipPath);
 
-          if (isSample !== "true") {
-            const customerId = await addOrUpdateGuests(
-              eventId,
-              guestNames,
-              zipUrl
-            );
+          // Send update to the client
+          res.write(`data: ${JSON.stringify(val)}\n\n`);
+        })
+      );
 
-            await createTransaction(
-              "image",
-              req.user._id,
-              null,
-              amountSpend,
-              "completed",
-              eventId,
-              customerId
-            );
-          }
-          res.write(`zipUrl: ${zipUrl}`);
-          res.end();
-        });
+      await archive.finalize();
+
+      output.on("close", async () => {
+        const zipBuffer = fs.readFileSync(zipPath);
+        const zipUrl = await uploadFileToFirebase(
+          zipBuffer,
+          zipFilename,
+          eventId,
+          isSample
+        );
+        fs.unlinkSync(zipPath);
+
+        if (isSample !== "true") {
+          const customerId = await addOrUpdateGuests(
+            eventId,
+            guestNames,
+            zipUrl
+          );
+
+          await createTransaction(
+            "image",
+            req.user._id,
+            null,
+            amountSpend,
+            "completed",
+            eventId,
+            customerId
+          );
+        }
+        res.write(`zipUrl: ${zipUrl}`);
+        res.end();
       });
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    } finally {
-      if (!fs.existsSync(inputPath)) {
-        fs.unlinkSync(inputPath);
-      }
-    }
-  }
-);
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  } 
+});
 
 module.exports = router;

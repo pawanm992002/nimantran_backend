@@ -3,7 +3,6 @@ const { Event } = require("../models/Event");
 const { Client, MessageMedia } = require("whatsapp-web.js"); // for personal messages
 const qrcode = require("qrcode");
 const { invitationTracker } = require("../models/InvitationTracker");
-const puppeteer = require('puppeteer');
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -12,30 +11,27 @@ const client = twilio(accountSid, authToken);
 let clientPersonal;
 
 const generateQR = async (req, res) => {
-  // Launch puppeteer to get the path to the Chromium executable
-  const browserFetcher = puppeteer.createBrowserFetcher();
-  const revisionInfo = await browserFetcher.download('1095492');
-  
-  clientPersonal = new Client({
-    puppeteer: {
-      headless: true, // Ensure headless mode for cloud functions
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      executablePath: revisionInfo.executablePath, // Puppeteer's Chromium path
-    },
-    session: null,
-  });
-
-  clientPersonal.on("qr", (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      console.log("...........", url);
-      if (err) {
-        return res.status(400).send({ message: 'Error generating QR code' });
-      }
-      res.status(200).send({ qrCode: url });
+  try {
+    clientPersonal = new Client({
+      puppeteer: {
+        headless: true, // Ensure headless mode
+      },
+      session: null,
     });
-  });
 
-  await clientPersonal.initialize();
+    clientPersonal.on("qr", (qr) => {
+      qrcode.toDataURL(qr, (err, url) => {
+        if (err) {
+          return res.status(400).send({ message: "Error generating QR code" });
+        }
+        res.status(200).send({ qrCode: url });
+      });
+    });
+
+    await clientPersonal.initialize();
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
 };
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
@@ -221,11 +217,6 @@ module.exports = {
   bulkWhatsuppPersonalInvite,
   bulkWhatsuppBusinessInvite,
 };
-
-
-
-
-
 
 // /////////////////////////////////////////////////////////////////////////////////////////
 // const chromium = require('chrome-aws-lambda');

@@ -363,13 +363,14 @@ router.post("/", authenticateJWT, async (req, res) => {
       scalingH,
       isSample,
       videoDuration,
+      fileName
     } = req.body;
     let { guestNames } = req.body;
 
     const eventId = req?.query?.eventId;
     if (!eventId) throw new Error("Required Event Id");
 
-    const storageRef = ref(firebaseStorage, `uploads/${eventId}/inputFile.mp4`);
+    const storageRef = ref(firebaseStorage, `uploads/${eventId}/${fileName}`);
 
     const inputBuffer = await getBytes(storageRef);
     inputPath = path.join(UPLOAD_DIR, `inputFile${Date.now()}.mp4`);
@@ -411,9 +412,7 @@ router.post("/", authenticateJWT, async (req, res) => {
         throw new Error("Insufficient Balance");
     }
 
-    const texts = textProperty;
-
-    if (!texts || !inputPath) {
+    if (!textProperty || !inputPath) {
       throw new Error("Please provide the guest list and video.");
     }
 
@@ -443,7 +442,7 @@ router.post("/", authenticateJWT, async (req, res) => {
           chunk.map(async (val, i) => {
             await createVideoForGuest(
               inputPath,
-              texts,
+              textProperty,
               scalingFont,
               scalingH,
               scalingW,
