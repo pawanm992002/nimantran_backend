@@ -220,6 +220,7 @@ router.post(
               customerId
             );
           }
+          res.write(`zipUrl: ${zipUrl}`);
 
           res.end();
         });

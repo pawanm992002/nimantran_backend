@@ -488,10 +488,7 @@ router.post("/", authenticateJWT, async (req, res) => {
             customerId
           );
         }
-        // res.status(200).json({
-        //   zipUrl,
-        //   videoUrls: guestNames,
-        // });
+        res.write(`zipUrl: ${zipUrl}`);
         res.end();
       });
     });

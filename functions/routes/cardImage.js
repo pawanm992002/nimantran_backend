@@ -105,7 +105,7 @@ router.post(
       }`;
       fs.writeFileSync(inputPath, inputFileName.buffer);
 
-      if(textProperty?.length === 0) {
+      if (textProperty?.length === 0) {
         throw new Error("First Put some text box");
       }
 
@@ -143,7 +143,7 @@ router.post(
       const texts = JSON.parse(textProperty);
 
       if (!texts || !inputPath) {
-        throw new Error("Please provide the guest list and video.")
+        throw new Error("Please provide the guest list and video.");
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -211,14 +211,14 @@ router.post(
               customerId
             );
           }
-
+          res.write(`zipUrl: ${zipUrl}`);
           res.end();
         });
       });
     } catch (error) {
       res.status(400).json({ message: error.message });
     } finally {
-      if(!fs.existsSync(inputPath)) {
+      if (!fs.existsSync(inputPath)) {
         fs.unlinkSync(inputPath);
       }
     }
