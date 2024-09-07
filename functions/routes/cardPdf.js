@@ -87,92 +87,91 @@ const createPdfForGuest = async (
   }
 };
 
-router.post(
-  "/",
-  authenticateJWT,
-  async (req, res) => {
-    try {
-      let inputPath;
-      const {
-        textProperty,
-        scalingFont,
-        scalingW,
-        scalingH,
-        isSample,
-        fileName
-      } = req.body;
+router.post("/", authenticateJWT, async (req, res) => {
+  try {
+    let inputPath;
+    const {
+      textProperty,
+      scalingFont,
+      scalingW,
+      scalingH,
+      isSample,
+      fileName,
+    } = req.body;
 
-      let {guestNames} = req.body;
+    let { guestNames } = req.body;
 
-      const eventId = req?.query?.eventId;
-      if (!eventId) throw new Error("Required Event Id");
+    const eventId = req?.query?.eventId;
+    if (!eventId) throw new Error("Required Event Id");
 
-      const storageRef = ref(
-        firebaseStorage,
-        `uploads/${eventId}/${fileName}`
-      );
+    const storageRef = ref(firebaseStorage, `uploads/${eventId}/${fileName}`);
 
-      inputPath = await getBytes(storageRef); // Get the file as a byte array
+    inputPath = await getBytes(storageRef); // Get the file as a byte array
 
-      let amountSpend;
+    let amountSpend;
 
-      if (textProperty?.length === 0) {
-        throw new Error("First Put some text box");
-      }
+    if (textProperty?.length === 0) {
+      throw new Error("First Put some text box");
+    }
 
-      const user = await User.findById(req.user._id);
-      if (!user) throw new Error("User not found");
+    const user = await User.findById(req.user._id);
+    if (!user) throw new Error("User not found");
 
-      if (isSample) {
-        guestNames = [
-          { name: "pawan mishra", mobileNumber: "1111111111" },
-          {
-            name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-            mobileNumber: "2222222222",
-          },
-          {
-            name: "Raj",
-            mobileNumber: "3333333333",
-          },
-          {
-            name: "Kushagra Nalwaya",
-            mobileNumber: "4444444444",
-          },
-          {
-            name: "HARSHIL PAGARIA",
-            mobileNumber: "5555555555",
-          },
-        ];
-      } else {
-        amountSpend = 0.5 * guestNames.length;
+    if (isSample) {
+      guestNames = [
+        { name: "pawan mishra", mobileNumber: "1111111111" },
+        {
+          name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
+          mobileNumber: "2222222222",
+        },
+        {
+          name: "Raj",
+          mobileNumber: "3333333333",
+        },
+        {
+          name: "Kushagra Nalwaya",
+          mobileNumber: "4444444444",
+        },
+        {
+          name: "HARSHIL PAGARIA",
+          mobileNumber: "5555555555",
+        },
+      ];
+    } else {
+      amountSpend = 0.5 * guestNames.length;
 
-        if (user.credits - amountSpend <= 0)
-          throw new Error("Insufficient Balance");
-      }
+      if (user.credits - amountSpend <= 0)
+        throw new Error("Insufficient Balance");
+    }
 
-      if (!textProperty || !inputPath) {
-        throw new Error("Please provide the guest list and video.");
-      }
+    if (!textProperty || !inputPath) {
+      throw new Error("Please provide the guest list and video.");
+    }
 
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-      setImmediate(async () => {
-        const zipFilename = `processed_pdfs.zip`;
-        const zipPath = path.join(UPLOAD_DIR, zipFilename);
+    setImmediate(async () => {
+      const zipFilename = `processed_pdfs.zip`;
+      const zipPath = path.join(UPLOAD_DIR, zipFilename);
 
-        const output = fs.createWriteStream(zipPath);
-        const archive = archiver("zip", { zlib: { level: 9 } });
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver("zip", { zlib: { level: 9 } });
 
-        archive.on("error", (err) => {
-          throw err;
-        });
+      archive.on("error", (err) => {
+        throw err;
+      });
 
-        archive.pipe(output);
+      archive.pipe(output);
 
+      // Control concurrency to avoid overwhelming the server
+      const concurrencyLimit = 10;
+      const chunks = chunkArray(guestNames, concurrencyLimit);
+
+      for (const chunk of chunks) {
         await Promise.all(
-          guestNames.map(async (val, i) => {
+          chunk.map(async (val, i) => {
             await createPdfForGuest(
               inputPath,
               textProperty,
@@ -189,44 +188,53 @@ router.post(
             res.write(`data: ${JSON.stringify(val)}\n\n`);
           })
         );
+      }
 
-        await archive.finalize();
+      await archive.finalize();
 
-        output.on("close", async () => {
-          const zipBuffer = fs.readFileSync(zipPath);
-          const zipUrl = await uploadFileToFirebase(
-            zipBuffer,
-            zipFilename,
+      output.on("close", async () => {
+        const zipBuffer = fs.readFileSync(zipPath);
+        const zipUrl = await uploadFileToFirebase(
+          zipBuffer,
+          zipFilename,
+          eventId,
+          isSample
+        );
+        fs.unlinkSync(zipPath);
+
+        if (!isSample) {
+          const customerId = await addOrUpdateGuests(
             eventId,
-            isSample
+            guestNames,
+            zipUrl
           );
-          fs.unlinkSync(zipPath);
 
-          if (!isSample) {
-            const customerId = await addOrUpdateGuests(
-              eventId,
-              guestNames,
-              zipUrl
-            );
-
-            await createTransaction(
-              "pdf",
-              req.user._id,
-              null,
-              amountSpend,
-              "completed",
-              eventId,
-              customerId
-            );
-          }
-          res.write(`zipUrl: ${zipUrl}`);
-          res.end();
-        });
+          await createTransaction(
+            "pdf",
+            req.user._id,
+            null,
+            amountSpend,
+            "completed",
+            eventId,
+            customerId
+          );
+        }
+        res.write(`zipUrl: ${zipUrl}`);
+        res.end();
       });
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    } 
-  }
-);
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+    res.end();
+  } 
+});
+
+// Helper function to chunk an array into smaller arrays of a specified size
+const chunkArray = (array, chunkSize) => {
+  return array.reduce((acc, _, i) => {
+    if (i % chunkSize === 0) acc.push(array.slice(i, i + chunkSize));
+    return acc;
+  }, []);
+};
 
 module.exports = router;
