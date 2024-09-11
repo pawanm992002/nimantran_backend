@@ -51,6 +51,7 @@ const addOrUpdateGuests = async (eventId, guests) => {
     if (!event) {
       throw new Error("Event not found");
     }
+    
     guests.forEach((guest) => {
       const existingGuestIndex = event.guests.findIndex(
         (g) => g.mobileNumber === guest.mobileNumber
@@ -68,6 +69,8 @@ const addOrUpdateGuests = async (eventId, guests) => {
         });
       }
     });
+    
+    event.processingStatus = "completed";
 
     await event.save();
     return event.customerId;

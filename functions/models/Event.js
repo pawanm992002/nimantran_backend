@@ -6,6 +6,11 @@ const EventSchema = new mongoose.Schema({
     required: true,
     ref: "User",
   },
+  processingStatus: {
+    type: String,
+    enum: ["processing", "completed", "not started"],
+    default: "not started",
+  },
   eventName: {
     type: String,
     required: true,

@@ -11,6 +11,7 @@ const {
 const { User } = require("../models/User");
 const { ref, getBytes } = require("firebase/storage");
 const { SampleGuestList } = require('../constants');
+const { Event } = require("../models/Event");
 
 const router = express.Router();
 
@@ -84,6 +85,12 @@ router.post("/", authenticateJWT, async (req, res) => {
 
     const eventId = req?.query?.eventId;
     if (!eventId) throw new Error("Required Event Id");
+
+    const event = await Event.findById(eventId);
+    if(!event) throw new Error("Event not found");
+
+    event.processingStatus = "processing";
+    await event.save();
     
     const storageRef = ref(
       firebaseStorage,
