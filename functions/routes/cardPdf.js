@@ -1,9 +1,5 @@
 const express = require("express");
-const { fileParser } = require("express-multipart-file-parser");
-const fs = require("fs");
-const path = require("path");
 const { PDFDocument } = require("pdf-lib");
-const os = require("os");
 const {
   createCanvasWithCenteredText,
   addOrUpdateGuests,
@@ -14,15 +10,9 @@ const { authenticateJWT } = require("../middleware/auth");
 const { User } = require("../models/User");
 const { firebaseStorage } = require("../firebaseConfig");
 const { ref, getBytes } = require("firebase/storage");
+const { SampleGuestList } = require('../constants');
 
 const router = express.Router();
-
-const UPLOAD_DIR = os.tmpdir() || "/tmp";
-const PDF_UPLOAD_DIR = path.join(UPLOAD_DIR, "video");
-
-if (!fs.existsSync(PDF_UPLOAD_DIR)) {
-  fs.mkdirSync(PDF_UPLOAD_DIR);
-}
 
 const createPdfForGuest = async (
   inputPath,
@@ -116,25 +106,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     if (!user) throw new Error("User not found");
 
     if (isSample) {
-      guestNames = [
-        { name: "pawan mishra", mobileNumber: "1111111111" },
-        {
-          name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-          mobileNumber: "2222222222",
-        },
-        {
-          name: "Raj",
-          mobileNumber: "3333333333",
-        },
-        {
-          name: "Kushagra Nalwaya",
-          mobileNumber: "4444444444",
-        },
-        {
-          name: "HARSHIL PAGARIA",
-          mobileNumber: "5555555555",
-        },
-      ];
+      guestNames = SampleGuestList;
     } else {
       amountSpend = 0.5 * guestNames.length;
 
@@ -178,8 +150,7 @@ router.post("/", authenticateJWT, async (req, res) => {
       if (!isSample) {
         const customerId = await addOrUpdateGuests(
           eventId,
-          guestNames,
-          "" // zipUrl,
+          guestNames
         );
 
         await createTransaction(

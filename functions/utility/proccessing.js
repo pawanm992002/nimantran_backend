@@ -45,14 +45,12 @@ const downloadGoogleFont = async (fontFamily) => {
   return fontFilePath;
 };
 
-const addOrUpdateGuests = async (eventId, guests, zipUrl) => {
+const addOrUpdateGuests = async (eventId, guests) => {
   try {
     const event = await Event.findById(eventId);
     if (!event) {
       throw new Error("Event not found");
     }
-
-    event.zipUrl = zipUrl;
     guests.forEach((guest) => {
       const existingGuestIndex = event.guests.findIndex(
         (g) => g.mobileNumber === guest.mobileNumber

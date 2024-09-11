@@ -1,8 +1,5 @@
 const express = require("express");
 const {firebaseStorage} = require("../firebaseConfig");
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
 const sharp = require("sharp");
 const { authenticateJWT } = require("../middleware/auth");
 const createTransaction = require("../utility/creditTransiction");
@@ -11,27 +8,20 @@ const {
   createCanvasWithCenteredText,
   uploadFileToFirebase,
 } = require("../utility/proccessing");
-const archiver = require("archiver");
 const { User } = require("../models/User");
 const { ref, getBytes } = require("firebase/storage");
+const { SampleGuestList } = require('../constants');
 
 const router = express.Router();
 
-const UPLOAD_DIR = os.tmpdir() || "/tmp";
-const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "video");
-
-if (!fs.existsSync(VIDEO_UPLOAD_DIR)) {
-  fs.mkdirSync(VIDEO_UPLOAD_DIR);
-}
-
 const createImagesForGuest = async (
+  fileName,
   inputPath,
   texts,
   scalingFont,
   scalingH,
   scalingW,
   val,
-  archive,
   eventId,
   isSample
 ) => {
@@ -68,8 +58,7 @@ const createImagesForGuest = async (
 
     const outputBuffer = await baseImage.toBuffer();
 
-    const filename = `${val?.name}_${val?.mobileNumber}.png`;
-    archive.append(outputBuffer, { name: filename });
+    const filename = `${val?.name}_${val?.mobileNumber}-${fileName}`;
 
     const url = await uploadFileToFirebase(
       outputBuffer,
@@ -113,25 +102,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     if (!user) throw new Error("User not found");
 
     if (isSample === "true") {
-      guestNames = [
-        { name: "pawan mishra", mobileNumber: "1111111111" },
-        {
-          name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-          mobileNumber: "2222222222",
-        },
-        {
-          name: "Raj",
-          mobileNumber: "3333333333",
-        },
-        {
-          name: "Kushagra Nalwaya",
-          mobileNumber: "4444444444",
-        },
-        {
-          name: "HARSHIL PAGARIA",
-          mobileNumber: "5555555555",
-        },
-      ];
+      guestNames = SampleGuestList;
     } else {
       amountSpend = 0.25 * guestNames.length;
 
@@ -139,9 +110,7 @@ router.post("/", authenticateJWT, async (req, res) => {
         throw new Error("Insufficient Balance");
     }
 
-    const texts = textProperty;
-
-    if (!texts || !inputPath) {
+    if (!textProperty || !inputPath) {
       throw new Error("Please provide the guest list and video.");
     }
 
@@ -150,30 +119,19 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     setImmediate(async () => {
-      const zipFilename = `processed_images.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
-
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
-
-      archive.on("error", (err) => {
-        throw err;
-      });
-
-      archive.pipe(output);
 
       await Promise.all(
         guestNames?.map(async (val) => {
           await createImagesForGuest(
+            fileName,
             inputPath,
-            texts,
+            textProperty,
             scalingFont,
             scalingH,
             scalingW,
             val,
-            archive,
             eventId,
-            isSample
+            isSample,
           );
 
           // Send update to the client
@@ -181,41 +139,28 @@ router.post("/", authenticateJWT, async (req, res) => {
         })
       );
 
-      await archive.finalize();
-
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
+      if (isSample !== "true") {
+        const customerId = await addOrUpdateGuests(
           eventId,
-          isSample
+          guestNames
         );
-        fs.unlinkSync(zipPath);
 
-        if (isSample !== "true") {
-          const customerId = await addOrUpdateGuests(
-            eventId,
-            guestNames,
-            zipUrl
-          );
-
-          await createTransaction(
-            "image",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
-            eventId,
-            customerId
-          );
-        }
-        res.write(`zipUrl: ${zipUrl}`);
-        res.end();
-      });
+        await createTransaction(
+          "image",
+          req.user._id,
+          null,
+          amountSpend,
+          "completed",
+          eventId,
+          customerId
+        );
+      }
+      
+      res.end();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
+    res.end();
   } 
 });
 

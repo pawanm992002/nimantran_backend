@@ -1,10 +1,8 @@
 const express = require("express");
-const { fileParser } = require("express-multipart-file-parser");
 const fs = require("fs");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
-const archiver = require("archiver");
 const { createCanvas, registerFont, deregisterAllFonts } = require("canvas");
 const { authenticateJWT } = require("../middleware/auth");
 const {
@@ -17,19 +15,14 @@ const os = require("os");
 const { User } = require("../models/User");
 const { app, firebaseStorage } = require("../firebaseConfig");
 const { ref, getBytes } = require("firebase/storage");
+const { SampleGuestList } = require('../constants');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffmpegPath);
 
 const router = express.Router();
 
-// const UPLOAD_DIR = path.join(__dirname, "../tmp");
-const UPLOAD_DIR = os.tmpdir() || "/tmp";
-const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "video");
-
-if (!fs.existsSync(VIDEO_UPLOAD_DIR)) {
-  fs.mkdirSync(VIDEO_UPLOAD_DIR);
-}
+const UPLOAD_DIR = os.tmpdir() || path.join(__dirname, "../tmp");
 
 const createCanvasWithCenteredText = async (
   val,
@@ -93,7 +86,6 @@ const createVideoForGuest = (
   val,
   i,
   videoDuration,
-  archive,
   isSample,
   eventId
 ) => {
@@ -321,10 +313,6 @@ const createVideoForGuest = (
 
           const filename = `${val?.name}_${val?.mobileNumber}.mp4`;
 
-          const fileStreamForArchive = fs.createReadStream(tempOutputPath);
-
-          archive.append(fileStreamForArchive, { name: filename });
-
           const url = await uploadFileToFirebase(
             fs.readFileSync(tempOutputPath),
             filename,
@@ -386,25 +374,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     if (!user) throw new Error("User not found");
 
     if (isSample) {
-      guestNames = [
-        { name: "pawan mishra", mobileNumber: "1111111111" },
-        {
-          name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-          mobileNumber: "2222222222",
-        },
-        {
-          name: "Raj",
-          mobileNumber: "3333333333",
-        },
-        {
-          name: "Kushagra Nalwaya",
-          mobileNumber: "4444444444",
-        },
-        {
-          name: "HARSHIL PAGARIA",
-          mobileNumber: "5555555555",
-        },
-      ];
+      guestNames = SampleGuestList;
     } else {
       amountSpend = 1 * guestNames.length;
 
@@ -421,18 +391,6 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     setImmediate(async () => {
-      const zipFilename = `processed_videos.zip`;
-      const zipPath = path.join(UPLOAD_DIR, zipFilename);
-
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
-
-      archive.on("error", (err) => {
-        throw err;
-      });
-
-      archive.pipe(output);
-
       // Control concurrency to avoid overwhelming the server
       const concurrencyLimit = 10;
       const chunks = chunkArray(guestNames, concurrencyLimit);
@@ -449,7 +407,6 @@ router.post("/", authenticateJWT, async (req, res) => {
               val,
               i,
               videoDuration,
-              archive,
               isSample,
               eventId
             );
@@ -460,39 +417,27 @@ router.post("/", authenticateJWT, async (req, res) => {
         );
       }
 
-      await archive.finalize();
-
-      output.on("close", async () => {
-        const zipBuffer = fs.readFileSync(zipPath);
-        const zipUrl = await uploadFileToFirebase(
-          zipBuffer,
-          zipFilename,
+      if (!isSample) {
+        const customerId = await addOrUpdateGuests(
           eventId,
-          isSample
+          guestNames
         );
-
-        if (!isSample) {
-          const customerId = await addOrUpdateGuests(
-            eventId,
-            guestNames,
-            zipUrl
-          );
-          await createTransaction(
-            "video",
-            req.user._id,
-            null,
-            amountSpend,
-            "completed",
-            eventId,
-            customerId
-          );
-        }
-        res.write(`zipUrl: ${zipUrl}`);
-        res.end();
-      });
+        await createTransaction(
+          "video",
+          req.user._id,
+          null,
+          amountSpend,
+          "completed",
+          eventId,
+          customerId
+        );
+      }
+      
+      res.end();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
+    res.end();
   } finally {
     if (!fs.existsSync(inputPath)) {
       fs.unlinkSync(inputPath);
