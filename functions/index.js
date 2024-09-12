@@ -4,7 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 
-const textRoutes = require("./routes/textRoutes")
+const textRoutes = require("./routes/textRoutes");
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
@@ -23,9 +23,9 @@ const app = express();
 connectDB();
 
 app.use(cors());
-app.use(express.json({limit: '50mb'}));
+app.use(express.json({ limit: "50mb" }));
 app.use("/tmp", express.static("tmp"));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.get("/", (req, res) => {
   res.json("server started .........");
@@ -42,12 +42,16 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/videoEdit", videoRoutes);
 app.use("/api/imageEdit", cardRoutes);
 app.use("/api/pdfEdit", PdfRoutes);
-app.use("/api/",textRoutes)
+app.use("/api/", textRoutes);
+
+//local server
 
 // app.listen(8000, () => {
 //     console.log("listening")
 // })
 
+//firebase server
+
 exports.app = functions
-  .runWith({ timeoutSeconds: 540, memory: '8GB' })
+  .runWith({ timeoutSeconds: 540, memory: "8GB" })
   .https.onRequest(app);
