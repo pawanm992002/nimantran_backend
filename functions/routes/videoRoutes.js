@@ -15,7 +15,7 @@ const os = require("os");
 const { User } = require("../models/User");
 const { app, firebaseStorage } = require("../firebaseConfig");
 const { ref, getBytes } = require("firebase/storage");
-const { SampleGuestList } = require('../constants');
+const { SampleGuestList } = require("../constants");
 const { Event } = require("../models/Event");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -211,38 +211,9 @@ const createVideoForGuest = (
                 idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
-          case "slide":
-            moveToTop = 50;
-            moveToBottom = 50;
-            moveToLeft = 50;
-            moveToRight = 50;
-            filterConfig = {
-              filter: "overlay",
-              options: {
-                x: `if(lt(t,${text.startTime}+${
-                  text.transition.options.duration
-                }), (${xPos - moveToLeft} + (t-${text.startTime})*(${
-                  xPos + moveToRight
-                }-${xPos - moveToLeft})/${text.transition.options.duration}), ${
-                  xPos + moveToRight
-                })`,
-                y: `if(lt(t,${text.startTime}+${
-                  text.transition.options.duration
-                }), (${yPos - moveToTop} + (t-${text.startTime})*(${
-                  yPos + moveToBottom
-                }-${yPos - moveToTop})/${text.transition.options.duration}), ${
-                  yPos + moveToBottom
-                })`,
-                enable: `between(t,${text.startTime},${text.duration})`,
-              },
-              inputs:
-                idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
-              outputs:
-                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
-            };
-            break;
           case "path_cover":
-            const rotationSpeed = 0.4;
+            const rotationSpeed =
+              1 / parseInt(text.transition.options.duration);
             // const clockwise = text?.transition?.options?.clockwise !== false; // Default to clockwise if not specified
             const clockwise = true;
 
@@ -296,6 +267,69 @@ const createVideoForGuest = (
               },
             ];
             return fadeConfig;
+          case "slide":
+            moveToTop = 50;
+            moveToBottom = 50;
+            moveToLeft = 50;
+            moveToRight = 50;
+            filterConfig = {
+              filter: "overlay",
+              options: {
+                x: `if(lt(t,${text.startTime}+${
+                  text.transition.options.duration
+                }), (${xPos - moveToLeft} + (t-${text.startTime})*(${
+                  xPos + moveToRight
+                }-${xPos - moveToLeft})/${text.transition.options.duration}), ${
+                  xPos + moveToRight
+                })`,
+                y: `if(lt(t,${text.startTime}+${
+                  text.transition.options.duration
+                }), (${yPos - moveToTop} + (t-${text.startTime})*(${
+                  yPos + moveToBottom
+                }-${yPos - moveToTop})/${text.transition.options.duration}), ${
+                  yPos + moveToBottom
+                })`,
+                enable: `between(t,${text.startTime},${text.duration})`,
+              },
+              inputs:
+                idx === 0 ? ["0:v", "1:v"] : [`[tmp${idx}]`, `${idx + 1}:v`],
+              outputs:
+                idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+            };
+            break;
+          case "zoom_in":
+            console.log(text.transition);
+            const zoomInConfig = [
+              {
+                filter: "zoompan",
+                options: {
+                  z: `if(lte(on,0),0, min(pzoom+0.01,2))`, // Incremental zoom (starts at 1 and gradually zooms in)
+                  d: `1`, // Duration of the effect (30 FPS)
+                  x: "(iw/2)-(iw/zoom/2)", // Keep the image horizontally centered
+                  y: "(ih/2)-(ih/zoom/2)", // Keep the image vertically centered
+                  s: `${text.size.width}x${text.size.height}`, // Define the scaling size
+                },
+                inputs: `[${idx + 1}:v]`,
+                outputs: `zoom_in_${idx + 1}`,
+              },
+              {
+                filter: "overlay",
+                options: {
+                  x: xPos,
+                  y: yPos,
+                  enable: `between(t,${parseInt(text.startTime)},${parseInt(
+                    text.duration
+                  )})`,
+                },
+                inputs:
+                  idx === 0
+                    ? "[0:v][zoom_in_1]"
+                    : `[tmp${idx}][zoom_in_${idx + 1}]`,
+                outputs:
+                  idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              },
+            ];
+            return zoomInConfig;
           default:
             break;
         }
@@ -352,15 +386,15 @@ router.post("/", authenticateJWT, async (req, res) => {
       scalingH,
       isSample,
       videoDuration,
-      fileName
+      fileName,
     } = req.body;
     let { guestNames } = req.body;
 
     const eventId = req?.query?.eventId;
     if (!eventId) throw new Error("Required Event Id");
-    
+
     const event = await Event.findById(eventId);
-    if(!event) throw new Error("Event not found");
+    if (!event) throw new Error("Event not found");
 
     event.processingStatus = "processing";
     await event.save();
@@ -425,10 +459,7 @@ router.post("/", authenticateJWT, async (req, res) => {
       }
 
       if (!isSample) {
-        const customerId = await addOrUpdateGuests(
-          eventId,
-          guestNames
-        );
+        const customerId = await addOrUpdateGuests(eventId, guestNames);
         await createTransaction(
           "video",
           req.user._id,
@@ -439,7 +470,7 @@ router.post("/", authenticateJWT, async (req, res) => {
           customerId
         );
       }
-      
+
       res.end();
     });
   } catch (error) {

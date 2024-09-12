@@ -44,13 +44,9 @@ app.use("/api/imageEdit", cardRoutes);
 app.use("/api/pdfEdit", PdfRoutes);
 app.use("/api/", textRoutes);
 
-//local server
-
 // app.listen(8000, () => {
 //     console.log("listening")
 // })
-
-//firebase server
 
 exports.app = functions
   .runWith({ timeoutSeconds: 540, memory: "8GB" })
