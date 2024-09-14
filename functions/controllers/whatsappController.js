@@ -12,6 +12,7 @@ let clientPersonal;
 
 const generateQR = async (req, res) => {
   try {
+    console.log("...............");
     clientPersonal = new Client({
       puppeteer: {
         headless: true, // Ensure headless mode
@@ -19,20 +20,63 @@ const generateQR = async (req, res) => {
       session: null,
     });
 
+    console.log("............... 1", clientPersonal);
+
+    let responseSent = false; // Flag to check if response has already been sent
+
     clientPersonal.on("qr", (qr) => {
+      if (responseSent) return; // Prevent sending another response
+      console.log("............... 2", qr);
       qrcode.toDataURL(qr, (err, url) => {
-        if (err) {
+        if (err && !responseSent) {
+          responseSent = true; // Mark response as sent
           return res.status(400).send({ message: "Error generating QR code" });
         }
-        res.status(200).send({ qrCode: url });
+        if (!responseSent) {
+          responseSent = true; // Mark response as sent
+          res.status(200).send({ qrCode: url });
+        }
       });
     });
 
-    await clientPersonal.initialize();
+    const inited = await clientPersonal.initialize();
+    console.log(".......... 3", inited);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    if (!responseSent) {
+      // Send error only if no response has been sent
+      res.status(400).json({ message: error.message });
+    }
   }
 };
+
+// const generateQR = async (req, res) => {
+//   try {
+//     console.log("...............");
+//     clientPersonal = new Client({
+//       puppeteer: {
+//         headless: true, // Ensure headless mode
+//       },
+//       session: null,
+//     });
+
+//     console.log("............... 1",clientPersonal);
+
+//     clientPersonal.on("qr", (qr) => {
+//       console.log("............... 2", qr);
+//       qrcode.toDataURL(qr, (err, url) => {
+//         if (err) {
+//           return res.status(400).send({ message: "Error generating QR code" });
+//         }
+//         res.status(200).send({ qrCode: url });
+//       });
+//     });
+
+//     const inited = await clientPersonal.initialize();
+//     console.log(".......... 3", inited);
+//   } catch (error) {
+//     res.status(400).json({ message: error.message });
+//   }
+// };
 
 const individualWhatsuppPersonalInvite = async (req, res) => {
   try {
