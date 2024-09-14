@@ -1,149 +1,46 @@
 const mongoose = require("mongoose");
 const { Text } = require("../models/Text");
-const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
-const { fileParser } = require("express-multipart-file-parser");
-const path = require("path");
-const { app, firebaseStorage } = require("../firebaseConfig");
-
-const uploadFileToFirebase = async (
-  fileBuffer,
-  filename,
-  eventId,
-  isSample,
-  i
-) => {
-  try {
-    let storageRef;
-    if (isSample === "true") {
-      storageRef = ref(
-        firebaseStorage,
-        `sample/sample${i}${i === "zip" ? ".zip" : ".png"}`
-      );
-    } else {
-      storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
-    }
-    const snapshot = await uploadBytes(storageRef, fileBuffer);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-  } catch (error) {
-    console.error("Error uploading file to Firebase:", error);
-    throw error;
-  }
-};
-const uploadFile = async (req, res) => {
-  const { eventId } = req?.query;
-  let inputFilePath = req.files.find((val) => val.fieldname === "inputfile");
-  const buffer = inputFilePath.buffer;
-
-  console.log(inputFilePath);
-  const patToFile = inputFilePath.originalname;
-
-  const fileExtension = path.extname(patToFile);
-
-  const fileName = eventId + "file" + fileExtension;
-  console.log(fileName);
-  const url = await uploadFileToFirebase(buffer, fileName, eventId, false, 0);
-  if (!url) {
-    return res.status(400).json({ message: "Error uploading image" });
-  }
-  const file = await Text.findOneAndUpdate(
-    { eventId },
-    {
-      $set: {
-        inputFile: url,
-      },
-    },
-    { new: true }
-  );
-  return res.status(200).json({ file });
-};
 
 const saveText = async (req, res) => {
-  const { texts } = req.body;
+  try {
+    const { texts, inputFile } = req.body;
+    const { eventId } = req.query;
 
-  const { eventId } = req.query;
-  if (!texts) return res.status(400).json({ message: "Text not found" });
-  if (!eventId) return res.status(400).json({ message: "Event ID not found" });
+    if (!eventId) throw new Error("Event ID not found");
 
-  const textss = await Text.aggregate([
-    {
-      $match: {
-        eventId: new mongoose.Types.ObjectId(eventId),
-      },
-    },
-  ]);
-
-  if (textss.length <= 0) {
-    try {
-      const textUpload = await Text.create({
-        eventId,
-        texts: [...texts],
-      });
-
-      if (!textUpload) {
-        return res.status(400).json({ message: "Error uploading text" });
-      }
-
-      return res.status(200).json(textUpload);
-    } catch (error) {
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  } else {
-    try {
-      const updatedTexts = await Text.findOneAndUpdate(
+    if (inputFile && texts && texts?.length !== 0) {
+      const savedStates = await Text.updateOne(
         { eventId },
         {
           $set: {
             texts: texts,
+            inputFile: inputFile,
           },
         },
-        { new: true }
+        { upsert: true }
       );
-      if (!updatedTexts) {
-        return res.status(400).json({ message: "Error updating text" });
-      }
-      return res.status(200).json(updatedTexts);
-    } catch (error) {}
+
+      if (!savedStates) throw new Error("States are not saving");
+
+      return res.status(200).json(savedStates);
+    }
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 };
 
 const getTexts = async (req, res) => {
-  // const user = req.user?._id;
-  const { eventId } = req.query;
-
-  if (!eventId) return res.status(400).json({ message: "Event ID not found" });
-  // if (!user) return res.status(400).json({ message: "User not found" });
-
   try {
-    const texts = await Text.aggregate([
-      {
-        $match: {
-          eventId: new mongoose.Types.ObjectId(eventId),
-        },
-      },
-      {
-        $lookup: {
-          from: "events",
-          localField: "eventId",
-          foreignField: "_id",
-          as: "eventDetails",
-          pipeline: [
-            {
-              $project: {
-                eventId: 1,
-                texts: 1,
-                inputFile: 1,
-              },
-            },
-          ],
-        },
-      },
-    ]);
+    const { eventId } = req.query;
+    if (!eventId) throw new Error("Event ID not found");
+
+    const texts = await Text.findOne({ eventId });
+    if (!texts) throw new Error("States not Exists");
 
     return res.status(200).json(texts);
   } catch (error) {
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(400).json({ message: error.message });
   }
 };
 
-module.exports = { saveText, getTexts, uploadFile };
+module.exports = { saveText, getTexts };

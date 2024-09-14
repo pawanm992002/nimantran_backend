@@ -1,44 +1,40 @@
 const mongoose = require("mongoose");
-const { Number } = require("twilio/lib/twiml/VoiceResponse");
 
 const TextSchema = new mongoose.Schema({
   eventId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Event",
   },
-  inputFile:{
-    type:String,
+  inputFile: {
+    type: String,
   },
   texts: [
     {
-      backgroundColor: String,
+      id: Number,
       duration: Number,
       fontColor: String,
       fontFamily: String,
       fontSize: Number,
-      fontStyle: String,
       fontWeight: String,
-      hidden: Boolean,
-      id: Number,
-      page: Number,
+      fontStyle: String,
       position: {
         x: Number,
         y: Number,
       },
+      backgroundColor: String,
+      hidden: Boolean,
+      page: Number,
       size: {
         height: Number,
         width: Number,
       },
-      startTime: mongoose.Schema.Types.Decimal128,
+      startTime: Number,
       text: String,
+      underline: String,
       transition: {
-          type:Object,
+        type: Object,
+        default: null,
       },
-      eventId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Event",
-      },
-
     },
   ],
 });
