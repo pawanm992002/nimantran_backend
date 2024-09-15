@@ -1,5 +1,6 @@
 const { User } = require("../models/User");
 const { Event } = require("../models/Event");
+const mongoose = require("mongoose");
 
 const createEvent = async (req, res) => {
   try {
@@ -11,18 +12,17 @@ const createEvent = async (req, res) => {
     if (!customer) {
       throw new Error("User not found");
     }
-    
+
     const event = new Event({
       customerId,
       eventName,
       dateOfOrganising,
       location,
-      editType
+      editType,
     });
 
-
     const response = await event.save();
-    if(!response) {
+    if (!response) {
       throw new Error("Event not Created");
     }
     customer.events.push(event);
@@ -128,7 +128,20 @@ const deleteEvent = async (req, res) => {
 const getAllCustomerEvents = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const customer = await User.findById(customerId).populate("events");
+    const customer = await User.findById(customerId).populate({
+      path: "events", // Path to populate // Exclude guests field from the events
+    });
+    // const customer = await User.aggregate([
+    //   { $match: { _id: new mongoose.Types.ObjectId(customerId) } },
+    //   {
+    //     $lookup: {
+    //       from: "events",
+    //       localField: "events",
+    //       foreignField: "_id",
+    //       as: "events",
+    //     },
+    //   },
+    // ]);
 
     if (!customer) {
       return res.status(404).json({
@@ -167,6 +180,7 @@ const getAllEvents = async (req, res) => {
       {
         $project: {
           eventName: 1,
+
           dateOfOrganising: 1,
           location: 1,
           organiser: 1,
@@ -211,7 +225,7 @@ const getAllClientEvents = async (req, res) => {
           events: customer.events,
         };
       });
-      
+
       res.status(200).json({
         success: true,
         data: allEventsWithCustomerNames,
@@ -260,10 +274,9 @@ const getAllGuestMedia = async (req, res) => {
     const eventId = req?.params?.id;
 
     const mediaGrid = await Event.findById(eventId);
-    if(!mediaGrid) throw new Error("Event not exists");
+    if (!mediaGrid) throw new Error("Event not exists");
 
     return res.status(200).json({ data: mediaGrid });
-
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
