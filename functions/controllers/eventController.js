@@ -128,20 +128,21 @@ const deleteEvent = async (req, res) => {
 const getAllCustomerEvents = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const customer = await User.findById(customerId).populate({
-      path: "events", // Path to populate // Exclude guests field from the events
-    });
-    // const customer = await User.aggregate([
-    //   { $match: { _id: new mongoose.Types.ObjectId(customerId) } },
-    //   {
-    //     $lookup: {
-    //       from: "events",
-    //       localField: "events",
-    //       foreignField: "_id",
-    //       as: "events",
-    //     },
-    //   },
-    // ]);
+    // const customer = await User.findById(customerId).populate({
+    //   path: "events", // Path to populate // Exclude guests field from the events
+    // });
+    const customer = await User.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(customerId) } },
+      {
+        $lookup: {
+          from: "events",
+          localField: "events",
+          foreignField: "_id",
+          as: "events",
+          pipeline: [{ $project: { guests: 0 } }],
+        },
+      },
+    ]);
 
     if (!customer) {
       return res.status(404).json({
@@ -152,7 +153,7 @@ const getAllCustomerEvents = async (req, res) => {
     res.status(200).json({
       data: customer,
       success: true,
-      message: "All events fetched successfully",
+      message: "All Customer events fetched successfully",
     });
   } catch (error) {
     console.error("Error fetching all events:", error);
@@ -226,9 +227,39 @@ const getAllClientEvents = async (req, res) => {
         };
       });
 
+      const r = await User.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(clientId) } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "customers",
+            foreignField: "_id",
+            as: "customers",
+            pipeline: [
+              {
+                $lookup: {
+                  from: "events",
+                  localField: "events",
+                  foreignField: "_id",
+                  as: "events",
+                },
+              },
+              {
+                $project: {
+                  "events.guests": 0,
+                  "events.zipUrl": 0,
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      console.log(r);
       res.status(200).json({
         success: true,
-        data: allEventsWithCustomerNames,
+        data: r,
+        message: "All clients events fetched successfully",
       });
     } else {
       res.status(404).json({
