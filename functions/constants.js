@@ -1,20 +1,20 @@
 const SampleGuestList = [
-  { name: "pawan mishra", mobileNumber: "1111111111" },
+  { name: "pawan mishra", mobileNumber: "+919855556173" },
   {
     name: "Dr. Venkatanarasimha Raghavan Srinivasachariyar Iyer",
-    mobileNumber: "2222222222",
+    mobileNumber: "+918555759764",
   },
   {
     name: "Raj",
-    mobileNumber: "3333333333",
+    mobileNumber: "+917555776587",
   },
   {
     name: "Kushagra Nalwaya",
-    mobileNumber: "4444444444",
+    mobileNumber: "+918555977161",
   },
   {
     name: "HARSHIL PAGARIA",
-    mobileNumber: "5555555555",
+    mobileNumber: "+919255557211",
   },
 ];
 

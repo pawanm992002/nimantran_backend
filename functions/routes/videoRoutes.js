@@ -307,7 +307,7 @@ const createVideoForGuest = (
                   d: `1`, // Duration of the effect (30 FPS)
                   x: "(iw/2)-(iw/zoom/2)", // Keep the image horizontally centered
                   y: "(ih/2)-(ih/zoom/2)", // Keep the image vertically centered
-                  s: `${text.size.width}x${text.size.height}`, // Define the scaling size
+                  s: `${parseInt(text.size.width*scalingW)}x${parseInt(text.size.height*scalingH)}`, // Define the scaling size
                 },
                 inputs: `[${idx + 1}:v]`,
                 outputs: `zoom_in_${idx + 1}`,
