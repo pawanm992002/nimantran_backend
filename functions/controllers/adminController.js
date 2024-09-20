@@ -171,6 +171,8 @@ const transferCreditToClient = async (req, res) => {
   try {
     const {userId, credits} = req.body;
 
+    if(credits <= 0) throw new Error("Credit must be more than zero");
+
     const user = await User.findById(userId);
     if (!user) {
       throw new Error("User not found");
