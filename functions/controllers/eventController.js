@@ -130,18 +130,8 @@ const getAllCustomerEvents = async (req, res) => {
     const { customerId } = req.params;
     const customer = await User.findById(customerId).populate({
       path: "events", // Path to populate // Exclude guests field from the events
+      select: "-events.guests", // Exclude guests field from the events
     });
-    // const customer = await User.aggregate([
-    //   { $match: { _id: new mongoose.Types.ObjectId(customerId) } },
-    //   {
-    //     $lookup: {
-    //       from: "events",
-    //       localField: "events",
-    //       foreignField: "_id",
-    //       as: "events",
-    //     },
-    //   },
-    // ]);
 
     if (!customer) {
       return res.status(404).json({
@@ -152,7 +142,7 @@ const getAllCustomerEvents = async (req, res) => {
     res.status(200).json({
       data: customer,
       success: true,
-      message: "All events fetched successfully",
+      message: "All Customer events fetched successfully",
     });
   } catch (error) {
     console.error("Error fetching all events:", error);
@@ -178,21 +168,34 @@ const getAllEvents = async (req, res) => {
         $unwind: "$user", // Unwind the user array to get a single object
       },
       {
+        $lookup: {
+          from: "users",
+          localField: "user.clientId",
+          foreignField: "_id",
+          as: "client",
+        },
+      },
+      { $unwind: "$client" },
+      {
         $project: {
           eventName: 1,
-
           dateOfOrganising: 1,
           location: 1,
           organiser: 1,
-          "user.mobile": 1, // Only project the user's name
-          "user._id": 1,
-          "user.name": 1,
+
+          user: {
+            _id: "$user._id",
+            name: "$user.name",
+            clientId: "$user.clientId",
+            clientName: "$client.name",
+          },
         },
       },
     ]);
+
     res.status(200).json({
       success: true,
-      message: "All events fetched successfully",
+      message: "All events for fetched successfully",
       data: events,
     });
   } catch (error) {
@@ -208,27 +211,60 @@ const getAllClientEvents = async (req, res) => {
   try {
     const clientId = req.user._id;
 
-    // Find the client by ID and populate the 'customers' and 'events' fields
-    const client = await User.findById(clientId).populate({
-      path: "customers",
-      populate: {
-        path: "events",
-        model: "Event",
+    const ClientEvents = await User.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(clientId) } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "customers",
+          foreignField: "_id",
+          as: "customers",
+        },
       },
-    });
+      { $unwind: "$customers" },
+      {
+        $lookup: {
+          from: "events",
+          localField: "customers.events",
+          foreignField: "_id",
+          as: "events",
+        },
+      },
+      { $unwind: "$events" },
+      {
+        $project: {
+          _id: "$events._id",
+          eventName: "$events.eventName",
+          dateOfOrganising: "$events.dateOfOrganising",
+          editType: "$events.editType",
+          location: "$events.location",
+          active: "$events.active",
+          createdAt: "$events.createdAt",
+          updatedAt: "$events.updatedAt",
+          processingStatus: "$events.processingStatus",
+          customerName: "$customers.name",
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: null,
+          events: { $push: "$$ROOT" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          events: 1,
+        },
+      },
+    ]);
 
-    // Check if client and client.customers exist and are arrays
-    if (client && Array.isArray(client.customers)) {
-      const allEventsWithCustomerNames = client.customers.map((customer) => {
-        return {
-          customerName: customer.name,
-          events: customer.events,
-        };
-      });
-
+    if (ClientEvents.length > 0) {
       res.status(200).json({
         success: true,
-        data: allEventsWithCustomerNames,
+        data: ClientEvents[0],
+        message: "All clients' events fetched successfully",
       });
     } else {
       res.status(404).json({
