@@ -6,8 +6,8 @@ const { authenticateJWT, roleMiddleware } = require("../middleware/auth");
 router.post('/create-event/:customerId', authenticateJWT, createEvent);
 router.get('/get-all-events', authenticateJWT, getAllEvents);
 router.get('/get-event/:id', authenticateJWT, getEvent);
-router.put('/update-event/:id/:customerId', authenticateJWT, roleMiddleware(["client"]), updatedEvent)
-router.delete('/delete-event/:id/:customerId', authenticateJWT, roleMiddleware(["client"]), deleteEvent)
+router.put('/update-event/:id/:customerId', authenticateJWT, roleMiddleware(["client", 'customer']), updatedEvent)
+router.delete('/delete-event/:id/:customerId', authenticateJWT, roleMiddleware(["client", 'customer']), deleteEvent)
 router.get('/get-all-guest-media/:id', authenticateJWT, getAllGuestMedia)
 
 router.get(

@@ -1,189 +1,126 @@
 const twilio = require("twilio"); // for business messages
 const { Event } = require("../models/Event");
-const { Client, MessageMedia } = require("whatsapp-web.js"); // for personal messages
-const qrcode = require("qrcode");
+// const { Client, MessageMedia } = require("whatsapp-web.js"); // for personal messages
+// const qrcode = require("qrcode");
 const { invitationTracker } = require("../models/InvitationTracker");
+const venom = require("venom-bot");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 
-let clientPersonal;
+// let clientPersonal;
 
-const generateQR = async (req, res) => {
-  try {
-    console.log("...............");
-    clientPersonal = new Client({
-      puppeteer: {
-        headless: true, // Ensure headless mode
-      },
-      session: null,
-    });
+let clientInstance; // This will hold the WhatsApp client instance
+let qrCodeData = ""; // Store the QR code data temporarily to send to the client
 
-    console.log("............... 1", clientPersonal);
-
-    let responseSent = false; // Flag to check if response has already been sent
-
-    clientPersonal.on("qr", (qr) => {
-      if (responseSent) return; // Prevent sending another response
-      console.log("............... 2", qr);
-      qrcode.toDataURL(qr, (err, url) => {
-        if (err && !responseSent) {
-          responseSent = true; // Mark response as sent
-          return res.status(400).send({ message: "Error generating QR code" });
-        }
-        if (!responseSent) {
-          responseSent = true; // Mark response as sent
-          res.status(200).send({ qrCode: url });
-        }
-      });
-    });
-
-    const inited = await clientPersonal.initialize();
-    console.log(".......... 3", inited);
-  } catch (error) {
-    if (!responseSent) {
-      // Send error only if no response has been sent
-      res.status(400).json({ message: error.message });
-    }
+const generateQR = (req, res) => {
+  if (clientInstance) {
+    // If the client is already initialized, no need to generate a new QR code
+    return res.json({ qr: qrCodeData });
   }
+
+  venom
+    .create(
+      {
+        session: "whatsapp-session",
+        multidevice: true,
+        headless: true, // Set to true for Firebase Functions
+        useChrome: false, // Must be false in Firebase Functions
+        disableSpins: true,
+        disableWelcome: true,
+      },
+      (base64Qrimg, asciiQR, attempts, urlCode) => {
+        console.log("Number of attempts to read QR:", attempts);
+        qrCodeData = base64Qrimg; // Save QR code data as base64 string
+        // You can use ASCII QR code if you want it to be printed in the console
+        console.log("QR Code in ASCII:", asciiQR);
+      },
+      undefined, // No options for callbacks on session creation failure
+      { multidevice: true } // Options (use multi-device, optional)
+    )
+    .then((client) => {
+      clientInstance = client;
+      console.log("Client initialized successfully!");
+      res.json({ qr: qrCodeData });
+    })
+    .catch((error) => {
+      console.error("Error initializing venom-bot:", error);
+      res.status(500).json({ error: "Error generating QR code" });
+    });
 };
 
-// const generateQR = async (req, res) => {
-//   try {
-//     console.log("...............");
-//     clientPersonal = new Client({
-//       puppeteer: {
-//         headless: true, // Ensure headless mode
-//       },
-//       session: null,
-//     });
+const individualWhatsuppPersonalInvite = (req, res) => {
+  // const { number } = req.body;
+  const message = "hii this is my message";
 
-//     console.log("............... 1",clientPersonal);
+  console.log(".................", clientInstance);
 
-//     clientPersonal.on("qr", (qr) => {
-//       console.log("............... 2", qr);
-//       qrcode.toDataURL(qr, (err, url) => {
-//         if (err) {
-//           return res.status(400).send({ message: "Error generating QR code" });
-//         }
-//         res.status(200).send({ qrCode: url });
-//       });
-//     });
-
-//     const inited = await clientPersonal.initialize();
-//     console.log(".......... 3", inited);
-//   } catch (error) {
-//     res.status(400).json({ message: error.message });
-//   }
-// };
-
-const individualWhatsuppPersonalInvite = async (req, res) => {
-  try {
-    if (!clientPersonal?.info || !clientPersonal?.info?.wid) {
-      throw new Error("WhatsApp client is not ready yet. Try Again");
-    }
-
-    const { number, mediaUrl } = req.body;
-    const chatId = `${number}@c.us`;
-    const caption = "This is a Invitation Message";
-    const { eventId } = req.query;
-
-    // Fetch the media from the Firebase URL
-    const media = await MessageMedia.fromUrl(mediaUrl);
-
-    if (!media) {
-      throw new Error("Failed to fetch media from the provided URL.");
-    }
-
-    // Send the media with an optional caption
-    const invitations = await clientPersonal.sendMessage(chatId, media, {
-      caption,
-    });
-
-    if (!invitations) throw new Error("Something Wrong");
-
-    // fs.unlinkSync(mediaPath);
-
-    const invitation = {
-      from: invitations?.from,
-      to: invitations?.to,
-      mediaType: invitations?.type,
-      status: "sended",
-    };
-
-    const isInvitationsExits = await invitationTracker.findOneAndUpdate(
-      { eventId },
-      {
-        $push: {
-          invitations: invitation,
-        },
-      }
-    );
-    if (!isInvitationsExits) {
-      const newInvitations = new invitationTracker({
-        eventId,
-        invitations: invitation,
-      });
-      await newInvitations.save();
-    }
-    res.status(200).send({ success: true, invitation });
-  } catch (error) {
-    res.status(400).send({ success: false, message: error.message });
+  if (!clientInstance) {
+    return res.status(400).json({ error: "Client not initialized yet" });
   }
+
+  const number = "916367703375";
+
+  const formattedNumber = `${number}@c.us`; // Ensure proper number formatting for WhatsApp
+
+  clientInstance
+    .sendText(formattedNumber, message)
+    .then((result) => {
+      res.json({ success: true, result });
+    })
+    .catch((error) => {
+      console.error("Error sending message:", error);
+      res.status(500).json({ error: "Error sending message" });
+    });
 };
 
 const bulkWhatsuppPersonalInvite = async (req, res) => {
-  try {
-    if (!clientPersonal?.info || !clientPersonal?.info?.wid) {
-      throw new Error("WhatsApp client is not ready yet. Try Again");
-    }
-    const { eventId } = req.query;
-    const guests = await Event.findById(eventId)?.select("guests");
-
-    const invitations = await Promise.all(
-      guests?.guests?.map(async (guest) => {
-        const chatId = `${guest?.mobileNumber}@c.us`;
-        const caption = "This is a Invitation Message";
-        const mediaUrl = guest.link;
-
-        // Fetch the media from the Firebase URL
-        const media = await MessageMedia.fromUrl(mediaUrl);
-
-        // Send the media with an optional caption
-        const response = await clientPersonal?.sendMessage(chatId, media, {
-          caption,
-        });
-        return {
-          from: response.from,
-          to: response.to,
-          mediaType: response.type,
-          status: "sended", // ["sended", "notSended", "queued"]
-        };
-      })
-    );
-    if (!invitations) throw new Error("Something Wrong");
-
-    const isInvitationsExits = await invitationTracker.findOneAndUpdate(
-      { eventId },
-      {
-        $push: { invitations: invitations },
-      }
-    );
-    if (!isInvitationsExits) {
-      const newInvitations = new invitationTracker({
-        eventId,
-        invitations,
-      });
-      await newInvitations.save();
-    }
-
-    res
-      .status(200)
-      .json({ message: "Invitations are sended", data: invitations });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
+  // try {
+  //   if (!clientPersonal?.info || !clientPersonal?.info?.wid) {
+  //     throw new Error("WhatsApp client is not ready yet. Try Again");
+  //   }
+  //   const { eventId } = req.query;
+  //   const guests = await Event.findById(eventId)?.select("guests");
+  //   const invitations = await Promise.all(
+  //     guests?.guests?.map(async (guest) => {
+  //       const chatId = `${guest?.mobileNumber}@c.us`;
+  //       const caption = "This is a Invitation Message";
+  //       const mediaUrl = guest.link;
+  //       // Fetch the media from the Firebase URL
+  //       const media = await MessageMedia.fromUrl(mediaUrl);
+  //       // Send the media with an optional caption
+  //       const response = await clientPersonal?.sendMessage(chatId, media, {
+  //         caption,
+  //       });
+  //       return {
+  //         from: response.from,
+  //         to: response.to,
+  //         mediaType: response.type,
+  //         status: "sended", // ["sended", "notSended", "queued"]
+  //       };
+  //     })
+  //   );
+  //   if (!invitations) throw new Error("Something Wrong");
+  //   const isInvitationsExits = await invitationTracker.findOneAndUpdate(
+  //     { eventId },
+  //     {
+  //       $push: { invitations: invitations },
+  //     }
+  //   );
+  //   if (!isInvitationsExits) {
+  //     const newInvitations = new invitationTracker({
+  //       eventId,
+  //       invitations,
+  //     });
+  //     await newInvitations.save();
+  //   }
+  //   res
+  //     .status(200)
+  //     .json({ message: "Invitations are sended", data: invitations });
+  // } catch (error) {
+  //   res.status(400).json({ message: error.message });
+  // }
 };
 
 const individualWhatsuppBusinessInvite = async (req, res) => {
@@ -193,11 +130,45 @@ const individualWhatsuppBusinessInvite = async (req, res) => {
     mobileNumber =
       mobileNumber?.at(0) === "+" ? mobileNumber : "+" + mobileNumber;
 
+    // const messageResp = await client.messages.create({
+    //   from: "whatsapp:+916378755023",
+    //   to: `whatsapp:${mobileNumber}`,
+    //   body: `This is a Invitation from {{1}}`, // For template, this is not used. Add in the template parameters instead.
+    //   // WhatsApp template parameters
+    //   // messagingServiceSid: 'your_messaging_service_sid', // Optional if set
+    //   contentSid: "HX7e367ed7f0c83ad7e72f241c4399357c", // Use the template SID
+    //   contentVariables: JSON.stringify({
+    //     1: "Pawan", // Replaces {{1}} with 'Your Company Name'
+    //   }),
+    // });
+
+    // const mediaUrl =
+    //   "https://firebasestorage.googleapis.com/v0/b/nimantran-test.appspot.com" +
+    //   link
+    //     ?.split(
+    //       "https://firebasestorage.googleapis.com/v0/b/nimantran-test.appspot.com"
+    //     )
+    //     ?.at(1);
+
     const messageResp = await client.messages.create({
-      body: "Your appointment is coming up on July 21 at 10PM",
-      from: "whatsapp:+14155238886",
+      from: "whatsapp:+916378755023",
       to: `whatsapp:${mobileNumber}`,
+      body: `This is a Invitation from {{1}}`, // For template, this is not used. Add in the template parameters instead.
+      // messagingServiceSid: 'your_messaging_service_sid', // Optional if set
+      contentSid: "HXc817986fdd37fbb70f6b2982163fcb1b", // Use the template SID
+      // mediaUrl: `https://firebasestorage.googleapis.com/v0/b/nimantran-test.appspot.com{{3}}`,
+      mediaUrl: link,
+      contentVariables: JSON.stringify({
+        1: "kushagra", // Replaces {{1}} with 'Your Company Name'
+        // 3: link
+        //   ?.split(
+        //     "https://firebasestorage.googleapis.com/v0/b/nimantran-test.appspot.com"
+        //   )
+        //   ?.at(1),
+      }),
     });
+
+    console.log("..........", messageResp);
 
     const savedEvent = await Event.findById(eventId);
 

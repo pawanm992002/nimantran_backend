@@ -34,7 +34,7 @@
     "qrcode": "^1.5.4",
     "sharp": "^0.33.4",
     "twilio": "^5.2.2",
-    "whatsapp-web.js": "^1.25.0"
+    "venom-bot": "^5.1.0"
   },
   "devDependencies": {
     "firebase-functions-test": "^3.1.0"
