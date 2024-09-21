@@ -128,19 +128,66 @@ const deleteEvent = async (req, res) => {
 const getAllCustomerEvents = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const customer = await User.findById(customerId).populate({
-      path: "events", // Path to populate // Exclude guests field from the events
-      select: "-events.guests", // Exclude guests field from the events
-    });
+    // const customer = await User.findById(customerId).populate({
+    //   path: "events", // Path to populate // Exclude guests field from the events
+    //   select: "-events.guests", // Exclude guests field from the events
+    // });
 
+    const customer = await User.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(customerId),
+        },
+      },
+      {
+        $lookup: {
+          from: "events",
+          localField: "_id",
+          foreignField: "customerId",
+          as: "events",
+          pipeline: [
+            {
+              $sort: {
+                createdAt: -1,
+              },
+            },
+          ],
+        },
+      },
+
+      {
+        $project: {
+          _id:0,
+          name: 0,
+          mobile: 0,
+          password: 0,
+          dateOfBirth: 0,
+          location: 0,
+          gender: 0,
+          role: 0,
+          credits: 0,
+          clientId: 0,
+          customers: 0,
+          createdAt: 0,
+          updatedAt: 0,
+          __v: 0,
+          receiveRequests: 0,
+          sendRequests: 0,
+          "events.customerId": 0,
+          "events.guests": 0,
+        },
+      },
+      
+    ]);
+    
     if (!customer) {
       return res.status(404).json({
         message: "User not found",
       });
     }
-
+    console.log(customer);        
     res.status(200).json({
-      data: customer,
+      data: customer[0].events,
       success: true,
       message: "All Customer events fetched successfully",
     });
@@ -182,7 +229,8 @@ const getAllEvents = async (req, res) => {
           dateOfOrganising: 1,
           location: 1,
           organiser: 1,
-
+          editType: 1,
+          processingStatus: 1,
           user: {
             _id: "$user._id",
             name: "$user.name",
@@ -195,7 +243,7 @@ const getAllEvents = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "All events for fetched successfully",
+      message: "All events for admin fetched successfully",
       data: events,
     });
   } catch (error) {
