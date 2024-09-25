@@ -10,7 +10,7 @@ const { authenticateJWT } = require("../middleware/auth");
 const { User } = require("../models/User");
 const { firebaseStorage } = require("../firebaseConfig");
 const { ref, getBytes } = require("firebase/storage");
-const { SampleGuestList } = require('../constants');
+const { SampleGuestList } = require("../constants");
 const { Event } = require("../models/Event");
 
 const router = express.Router();
@@ -94,7 +94,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     if (!eventId) throw new Error("Required Event Id");
 
     const event = await Event.findById(eventId);
-    if(!event) throw new Error("Event not found");
+    if (!event) throw new Error("Event not found");
 
     event.processingStatus = "processing";
     await event.save();
@@ -129,53 +129,52 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    setImmediate(async () => {
-      // Control concurrency to avoid overwhelming the server
-      const concurrencyLimit = 10;
-      const chunks = chunkArray(guestNames, concurrencyLimit);
+    setImmediate(() => {
+      (async () => {
+        // Control concurrency to avoid overwhelming the server
+        const concurrencyLimit = 10;
+        const chunks = chunkArray(guestNames, concurrencyLimit);
 
-      for (const chunk of chunks) {
-        await Promise.all(
-          chunk.map(async (val, i) => {
-            await createPdfForGuest(
-              inputPath,
-              textProperty,
-              scalingFont,
-              scalingH,
-              scalingW,
-              val,
-              eventId,
-              isSample
-            );
+        for (const chunk of chunks) {
+          await Promise.all(
+            chunk.map(async (val, i) => {
+              await createPdfForGuest(
+                inputPath,
+                textProperty,
+                scalingFont,
+                scalingH,
+                scalingW,
+                val,
+                eventId,
+                isSample
+              );
 
-            // Send update to the client
-            res.write(`data: ${JSON.stringify(val)}\n\n`);
-          })
-        );
-      }
+              // Send update to the client
+              res.write(`data: ${JSON.stringify(val)}\n\n`);
+            })
+          );
+        }
 
-      if (!isSample) {
-        const customerId = await addOrUpdateGuests(
-          eventId,
-          guestNames
-        );
+        if (!isSample) {
+          const customerId = await addOrUpdateGuests(eventId, guestNames);
 
-        await createTransaction(
-          "pdf",
-          req.user._id,
-          null,
-          amountSpend,
-          "completed",
-          eventId,
-          customerId
-        );
-      }
-      res.end();
+          await createTransaction(
+            "pdf",
+            req.user._id,
+            null,
+            amountSpend,
+            "completed",
+            eventId,
+            customerId
+          );
+        }
+        res.end();
+      })();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
     res.end();
-  } 
+  }
 });
 
 // Helper function to chunk an array into smaller arrays of a specified size

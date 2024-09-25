@@ -1,5 +1,5 @@
 const express = require("express");
-const {firebaseStorage} = require("../firebaseConfig");
+const { firebaseStorage } = require("../firebaseConfig");
 const sharp = require("sharp");
 const { authenticateJWT } = require("../middleware/auth");
 const createTransaction = require("../utility/creditTransiction");
@@ -10,7 +10,7 @@ const {
 } = require("../utility/proccessing");
 const { User } = require("../models/User");
 const { ref, getBytes } = require("firebase/storage");
-const { SampleGuestList } = require('../constants');
+const { SampleGuestList } = require("../constants");
 const { Event } = require("../models/Event");
 
 const router = express.Router();
@@ -78,8 +78,14 @@ const createImagesForGuest = async (
 router.post("/", authenticateJWT, async (req, res) => {
   let inputPath;
   try {
-    const { textProperty, scalingFont, scalingW, scalingH, isSample, fileName } =
-      req.body;
+    const {
+      textProperty,
+      scalingFont,
+      scalingW,
+      scalingH,
+      isSample,
+      fileName,
+    } = req.body;
 
     let { guestNames } = req.body;
 
@@ -87,15 +93,12 @@ router.post("/", authenticateJWT, async (req, res) => {
     if (!eventId) throw new Error("Required Event Id");
 
     const event = await Event.findById(eventId);
-    if(!event) throw new Error("Event not found");
+    if (!event) throw new Error("Event not found");
 
     event.processingStatus = "processing";
     await event.save();
-    
-    const storageRef = ref(
-      firebaseStorage,
-      `uploads/${eventId}/${fileName}`
-    );
+
+    const storageRef = ref(firebaseStorage, `uploads/${eventId}/${fileName}`);
 
     inputPath = await getBytes(storageRef); // Get the file as a byte array
 
@@ -108,7 +111,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) throw new Error("User not found");
 
-    if (isSample === "true") {
+    if (isSample) {
       guestNames = SampleGuestList;
     } else {
       amountSpend = 0.25 * guestNames.length;
@@ -125,50 +128,48 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    setImmediate(async () => {
+    setImmediate(() => {
+      (async () => {
+        await Promise.all(
+          guestNames?.map(async (val) => {
+            await createImagesForGuest(
+              fileName,
+              inputPath,
+              textProperty,
+              scalingFont,
+              scalingH,
+              scalingW,
+              val,
+              eventId,
+              isSample
+            );
 
-      await Promise.all(
-        guestNames?.map(async (val) => {
-          await createImagesForGuest(
-            fileName,
-            inputPath,
-            textProperty,
-            scalingFont,
-            scalingH,
-            scalingW,
-            val,
+            // Send update to the client
+            res.write(`data: ${JSON.stringify(val)}\n\n`);
+          })
+        );
+
+        if (!isSample) {
+          const customerId = await addOrUpdateGuests(eventId, guestNames);
+
+          await createTransaction(
+            "image",
+            req.user._id,
+            null,
+            amountSpend,
+            "completed",
             eventId,
-            isSample,
+            customerId
           );
+        }
 
-          // Send update to the client
-          res.write(`data: ${JSON.stringify(val)}\n\n`);
-        })
-      );
-
-      if (isSample !== "true") {
-        const customerId = await addOrUpdateGuests(
-          eventId,
-          guestNames
-        );
-
-        await createTransaction(
-          "image",
-          req.user._id,
-          null,
-          amountSpend,
-          "completed",
-          eventId,
-          customerId
-        );
-      }
-      
-      res.end();
+        res.end();
+      })();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
     res.end();
-  } 
+  }
 });
 
 module.exports = router;

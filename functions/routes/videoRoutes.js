@@ -307,7 +307,9 @@ const createVideoForGuest = (
                   d: `1`, // Duration of the effect (30 FPS)
                   x: "(iw/2)-(iw/zoom/2)", // Keep the image horizontally centered
                   y: "(ih/2)-(ih/zoom/2)", // Keep the image vertically centered
-                  s: `${parseInt(text.size.width*scalingW)}x${parseInt(text.size.height*scalingH)}`, // Define the scaling size
+                  s: `${parseInt(text.size.width * scalingW)}x${parseInt(
+                    text.size.height * scalingH
+                  )}`, // Define the scaling size
                 },
                 inputs: `[${idx + 1}:v]`,
                 outputs: `zoom_in_${idx + 1}`,
@@ -431,47 +433,49 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    setImmediate(async () => {
-      // Control concurrency to avoid overwhelming the server
-      const concurrencyLimit = 10;
-      const chunks = chunkArray(guestNames, concurrencyLimit);
+    setImmediate(() => {
+      (async () => {
+        // Control concurrency to avoid overwhelming the server
+        const concurrencyLimit = 10;
+        const chunks = chunkArray(guestNames, concurrencyLimit);
 
-      for (const chunk of chunks) {
-        await Promise.all(
-          chunk.map(async (val, i) => {
-            await createVideoForGuest(
-              inputPath,
-              textProperty,
-              scalingFont,
-              scalingH,
-              scalingW,
-              val,
-              i,
-              videoDuration,
-              isSample,
-              eventId
-            );
+        for (const chunk of chunks) {
+          await Promise.all(
+            chunk.map(async (val, i) => {
+              await createVideoForGuest(
+                inputPath,
+                textProperty,
+                scalingFont,
+                scalingH,
+                scalingW,
+                val,
+                i,
+                videoDuration,
+                isSample,
+                eventId
+              );
 
-            // Send update to the client
-            res.write(`data: ${JSON.stringify(val)}\n\n`);
-          })
-        );
-      }
+              // Send update to the client
+              res.write(`data: ${JSON.stringify(val)}\n\n`);
+            })
+          );
+        }
 
-      if (!isSample) {
-        const customerId = await addOrUpdateGuests(eventId, guestNames);
-        await createTransaction(
-          "video",
-          req.user._id,
-          null,
-          amountSpend,
-          "completed",
-          eventId,
-          customerId
-        );
-      }
+        if (!isSample) {
+          const customerId = await addOrUpdateGuests(eventId, guestNames);
+          await createTransaction(
+            "video",
+            req.user._id,
+            null,
+            amountSpend,
+            "completed",
+            eventId,
+            customerId
+          );
+        }
 
-      res.end();
+        res.end();
+      })();
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
