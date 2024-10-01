@@ -9,7 +9,6 @@ const {
   uploadFileToFirebase,
 } = require("../utility/proccessing");
 const { User } = require("../models/User");
-const { ref, getBytes } = require("firebase/storage");
 const { SampleGuestList } = require("../constants");
 const { Event } = require("../models/Event");
 
@@ -59,7 +58,10 @@ const createImagesForGuest = async (
 
     const outputBuffer = await baseImage.toBuffer();
 
-    const filename = `${val?.name}_${val?.mobileNumber}-${fileName}`;
+    const filename = `${val?.name}_${val?.mobileNumber}_${fileName}`.replace(
+      /\s+/g,
+      "_"
+    );
 
     const url = await uploadFileToFirebase(
       outputBuffer,
@@ -98,9 +100,10 @@ router.post("/", authenticateJWT, async (req, res) => {
     event.processingStatus = "processing";
     await event.save();
 
-    const storageRef = ref(firebaseStorage, `uploads/${eventId}/${fileName}`);
+    // Access the file in Firebase Storage using firebase-admin
+    const storageRef = firebaseStorage.file(`uploads/${eventId}/${fileName}`);
 
-    inputPath = await getBytes(storageRef); // Get the file as a byte array
+    [inputPath] = await storageRef.download(); // Get the file as a Buffer
 
     let amountSpend;
 
@@ -127,6 +130,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
 
     setImmediate(() => {
       (async () => {
