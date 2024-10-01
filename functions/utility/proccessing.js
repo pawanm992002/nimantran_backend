@@ -4,8 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const { createCanvas, registerFont, deregisterAllFonts } = require("canvas");
 const { Event } = require("../models/Event");
-const { app, firebaseStorage } = require("../firebaseConfig");
-const { ref, uploadBytes, getDownloadURL } = require("firebase/storage");
+const { firebaseStorage } = require("../firebaseConfig");
 const sharp = require("sharp");
 
 const TEMP_DIR = os.tmpdir() || "/tmp";
@@ -166,26 +165,70 @@ const createCanvasWithCenteredText = async (
   }
 };
 
-const uploadFileToFirebase = async (
-  fileBuffer,
-  filename,
-  eventId,
-  isSample
-) => {
+// const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample) => {
+//   try {
+//     // Determine the destination path based on whether it's a sample or not
+//     let filePath = isSample 
+//       ? `sample/${eventId}/${filename}` 
+//       : `uploads/${eventId}/${filename}`;
+
+//     // Get a reference to the Firebase Storage file
+//     const storageRef = firebaseStorage.file(filePath);
+
+//     // Upload the buffer to Firebase Storage
+//     await storageRef.save(fileBuffer, {
+//       metadata: {
+//         contentType: 'image/png', // Set appropriate content type; modify based on your file type
+//         cacheControl: 'public, max-age=31536000',
+//       },
+//     });
+
+//     // Get the download URL after upload
+//     const downloadURL = await storageRef.getSignedUrl({
+//       action: 'read',
+//       expires: '03-09-2491', // Set a long expiration time or change it as per requirement
+//     });
+
+//     return downloadURL[0]; // Return the first URL from the array of signed URLs
+//   } catch (error) {
+//     console.error("Error uploading file to Firebase:", error);
+//     throw error;
+//   }
+// };
+
+const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample) => {
   try {
-    let storageRef;
-    if (isSample === "true") {
-      storageRef = ref(firebaseStorage, `sample/${eventId}/${filename}`);
-    } else {
-      storageRef = ref(firebaseStorage, `uploads/${eventId}/${filename}`);
-    }
-    const snapshot = await uploadBytes(storageRef, fileBuffer);
-    return await getDownloadURL(snapshot.ref);
+    // Determine the destination path based on whether it's a sample or not
+    let filePath = isSample === "true" 
+      ? `sample/${eventId}/${filename}` 
+      : `uploads/${eventId}/${filename}`;
+
+    // Get a reference to the Firebase Storage file
+    const storageRef = firebaseStorage.file(filePath);
+
+    // Upload the buffer to Firebase Storage
+    await storageRef.save(fileBuffer, {
+      metadata: {
+        // contentType: 'image/jpeg', // Set appropriate content type; modify based on your file type
+        cacheControl: 'public, max-age=31536000',
+        // contentType: 'video/mp4'
+      },
+    });
+
+    // Make the file publicly accessible
+    await storageRef.makePublic();
+
+    // Get the public URL for the file
+    const publicURL = `https://storage.googleapis.com/${firebaseStorage.name}/${filePath}`;
+
+    return publicURL; // Return the public URL
   } catch (error) {
     console.error("Error uploading file to Firebase:", error);
     throw error;
   }
 };
+
+
 
 module.exports = {
   downloadGoogleFont,
