@@ -13,8 +13,7 @@ const {
 const createTransaction = require("../utility/creditTransiction");
 const os = require("os");
 const { User } = require("../models/User");
-const { app, firebaseStorage } = require("../firebaseConfig");
-const { ref, getBytes } = require("firebase/storage");
+const { firebaseStorage } = require("../firebaseConfig");
 const { SampleGuestList } = require("../constants");
 const { Event } = require("../models/Event");
 
@@ -79,6 +78,7 @@ const createCanvasWithCenteredText = async (
 };
 
 const createVideoForGuest = (
+  fileName,
   inputPath,
   texts,
   scalingFont,
@@ -348,7 +348,11 @@ const createVideoForGuest = (
         try {
           // fs.rmSync(tempOutputPath);
 
-          const filename = `${val?.name}_${val?.mobileNumber}.mp4`;
+          const filename =
+            `${val?.name}_${val?.mobileNumber}_${fileName}`.replace(
+              /\s+/g,
+              "_"
+            );
 
           const url = await uploadFileToFirebase(
             fs.readFileSync(tempOutputPath),
@@ -401,9 +405,10 @@ router.post("/", authenticateJWT, async (req, res) => {
     event.processingStatus = "processing";
     await event.save();
 
-    const storageRef = ref(firebaseStorage, `uploads/${eventId}/${fileName}`);
+    const storageRef = firebaseStorage.file(`uploads/${eventId}/${fileName}`);
 
-    const inputBuffer = await getBytes(storageRef);
+    const [inputBuffer] = await storageRef.download(); // Get the file as a Buffer
+
     inputPath = path.join(UPLOAD_DIR, `inputFile${Date.now()}.mp4`);
     fs.writeFileSync(inputPath, Buffer.from(inputBuffer));
 
@@ -432,6 +437,7 @@ router.post("/", authenticateJWT, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
 
     setImmediate(() => {
       (async () => {
@@ -443,6 +449,7 @@ router.post("/", authenticateJWT, async (req, res) => {
           await Promise.all(
             chunk.map(async (val, i) => {
               await createVideoForGuest(
+                fileName,
                 inputPath,
                 textProperty,
                 scalingFont,
