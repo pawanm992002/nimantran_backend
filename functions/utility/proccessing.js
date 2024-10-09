@@ -78,155 +78,261 @@ const addOrUpdateGuests = async (eventId, guests) => {
   }
 };
 
+// const createCanvasWithCenteredText = async (
+//   val,
+//   property,
+//   scalingFont,
+//   scalingH,
+//   scalingW,
+//   comp,
+//   quality = 1,
+// ) => {
+//   try {
+//     // Download the Google font and set the path
+//     const fontPath = await downloadGoogleFont(property.fontFamily);
+
+//     // Parse the initial font size with scaling
+//     let fontSize = parseInt(property.fontSize * scalingFont * quality);
+
+//     // Build the font string based on the initial size
+//     const buildFontString = (size) => {
+//       return `${property.fontStyle === "italic" ? "italic" : ""} ${
+//         property.fontWeight
+//       } ${size}px ${property.fontFamily}`;
+//     };
+
+//     // Register the font for use in the canvas
+//     registerFont(fontPath, { family: property.fontFamily });
+
+//     // Replace template placeholders in text with values
+//     let tempTextName = property.text.replace(
+//       /{(\w+)}/g,
+//       (match, p1) => val[p1] || ""
+//     );
+
+//     // Set the canvas size according to the scaled width and height
+//     const width = property.size.width * scalingW * quality;
+//     const height = property.size.height * scalingH * quality;
+//     const canvas = createCanvas(width, height);
+//     const ctx = canvas.getContext("2d");
+
+//     // Fill the background if a color is specified
+//     if (property.backgroundColor !== "none") {
+//       ctx.fillStyle = property.backgroundColor;
+//       ctx.fillRect(0, 0, width, height);
+//     }
+
+//     // Set the initial font color
+//     ctx.fillStyle = property.fontColor;
+
+//     // Set the font and adjust size if the text exceeds the canvas width
+//     ctx.font = buildFontString(fontSize);
+
+//     while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
+//       fontSize--; // Decrease the font size
+//       ctx.font = buildFontString(fontSize); // Rebuild the font string with the new size
+//     }
+
+//     // Set text alignment and baseline
+//     ctx.textAlign = "center";
+//     ctx.textBaseline = "middle";
+
+//     // Calculate the center of the canvas for text placement
+//     const x = width / 2;
+//     const y = height / 2;
+
+//     // Draw the text onto the canvas
+//     ctx.fillText(tempTextName, x, y);
+
+//     // Add underline if isUnderlined is true
+//     if (property.underline === "underline") {
+//       const textWidth = ctx.measureText(tempTextName).width;
+//       const underlineHeight = fontSize / 15; // Set underline height relative to font size
+//       const underlineY = y + fontSize / 2 + underlineHeight; // Adjust position below text
+
+//       ctx.strokeStyle = property.fontColor; // Use the same color as the text
+//       ctx.lineWidth = underlineHeight; // Thickness of the underline
+//       ctx.beginPath();
+//       ctx.moveTo(x - textWidth / 2, underlineY); // Start position of the underline
+//       ctx.lineTo(x + textWidth / 2, underlineY); // End position of the underline
+//       ctx.stroke(); // Draw the underline
+//     }
+
+//     if(comp === 'video') {
+//       return canvas.toDataURL();
+//     } else {
+//       return await sharp(canvas.toBuffer("image/png"))
+//         .sharpen() // Apply sharpening
+//         .toBuffer();
+//     }
+
+//   } catch (error) {
+//     throw error;
+//   }
+// };
+
+
+// Helper function to convert HEX to RGBA
+const hexToRGBA = (hex, opacity = 1) => {
+  let c;
+  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+    c = hex.substring(1).split('');
+    if (c.length === 3) {
+      c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+    }
+    c = '0x' + c.join('');
+    return `rgba(${(c >> 16) & 255}, ${(c >> 8) & 255}, ${c & 255}, ${opacity})`;
+  }
+  throw new Error('Invalid HEX color');
+};
+
 const createCanvasWithCenteredText = async (
   val,
   property,
   scalingFont,
   scalingH,
   scalingW,
-  quality = 1
+  comp,
+  quality = 1,
 ) => {
   try {
-    // Download the Google font and set the path
+    console.log(property);
     const fontPath = await downloadGoogleFont(property.fontFamily);
-
-    // Parse the initial font size with scaling
     let fontSize = parseInt(property.fontSize * scalingFont * quality);
 
-    // Build the font string based on the initial size
     const buildFontString = (size) => {
       return `${property.fontStyle === "italic" ? "italic" : ""} ${
         property.fontWeight
       } ${size}px ${property.fontFamily}`;
     };
 
-    // Register the font for use in the canvas
     registerFont(fontPath, { family: property.fontFamily });
-
-    // Replace template placeholders in text with values
     let tempTextName = property.text.replace(
       /{(\w+)}/g,
       (match, p1) => val[p1] || ""
     );
 
-    // Set the canvas size according to the scaled width and height
     const width = property.size.width * scalingW * quality;
     const height = property.size.height * scalingH * quality;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext("2d");
 
-    // Fill the background if a color is specified
+    // Handle background opacity (0-1 value). Default to 1 if none provided.
+    const backgroundOpacity = property.backgroundOpacity || 1;
     if (property.backgroundColor !== "none") {
-      ctx.fillStyle = property.backgroundColor;
+      const bgColor = hexToRGBA(property.backgroundColor, backgroundOpacity);
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, width, height);
     }
 
-    // Set the initial font color
-    ctx.fillStyle = property.fontColor;
-
-    // Set the font and adjust size if the text exceeds the canvas width
+    // Handle text opacity (0-1 value). Default to 1 if none provided.
+    ctx.fillStyle = hexToRGBA(property.fontColor, backgroundOpacity);
     ctx.font = buildFontString(fontSize);
 
     while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
-      fontSize--; // Decrease the font size
-      ctx.font = buildFontString(fontSize); // Rebuild the font string with the new size
+      fontSize--;
+      ctx.font = buildFontString(fontSize);
     }
 
-    // Set text alignment and baseline
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Calculate the center of the canvas for text placement
     const x = width / 2;
     const y = height / 2;
 
-    // Draw the text onto the canvas
     ctx.fillText(tempTextName, x, y);
 
-    // Add underline if isUnderlined is true
     if (property.underline === "underline") {
       const textWidth = ctx.measureText(tempTextName).width;
-      const underlineHeight = fontSize / 15; // Set underline height relative to font size
-      const underlineY = y + fontSize / 2 + underlineHeight; // Adjust position below text
+      const underlineHeight = fontSize / 15;
+      const underlineY = y + fontSize / 2 + underlineHeight;
 
-      ctx.strokeStyle = property.fontColor; // Use the same color as the text
-      ctx.lineWidth = underlineHeight; // Thickness of the underline
+      ctx.strokeStyle = hexToRGBA(property.fontColor, backgroundOpacity); // Use text opacity
+      ctx.lineWidth = underlineHeight;
       ctx.beginPath();
-      ctx.moveTo(x - textWidth / 2, underlineY); // Start position of the underline
-      ctx.lineTo(x + textWidth / 2, underlineY); // End position of the underline
-      ctx.stroke(); // Draw the underline
+      ctx.moveTo(x - textWidth / 2, underlineY);
+      ctx.lineTo(x + textWidth / 2, underlineY);
+      ctx.stroke();
     }
 
-    return await sharp(canvas.toBuffer("image/png"))
-      .sharpen() // Apply sharpening
-      .toBuffer();
+    if(comp === 'video') {
+      return canvas.toDataURL();
+    } else {
+      return await sharp(canvas.toBuffer("image/png"))
+        .sharpen()
+        .toBuffer();
+    }
+
   } catch (error) {
     throw error;
   }
 };
 
-// const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample) => {
-//   try {
-//     // Determine the destination path based on whether it's a sample or not
-//     let filePath = isSample 
-//       ? `sample/${eventId}/${filename}` 
-//       : `uploads/${eventId}/${filename}`;
-
-//     // Get a reference to the Firebase Storage file
-//     const storageRef = firebaseStorage.file(filePath);
-
-//     // Upload the buffer to Firebase Storage
-//     await storageRef.save(fileBuffer, {
-//       metadata: {
-//         contentType: 'image/png', // Set appropriate content type; modify based on your file type
-//         cacheControl: 'public, max-age=31536000',
-//       },
-//     });
-
-//     // Get the download URL after upload
-//     const downloadURL = await storageRef.getSignedUrl({
-//       action: 'read',
-//       expires: '03-09-2491', // Set a long expiration time or change it as per requirement
-//     });
-
-//     return downloadURL[0]; // Return the first URL from the array of signed URLs
-//   } catch (error) {
-//     console.error("Error uploading file to Firebase:", error);
-//     throw error;
-//   }
-// };
-
-const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample) => {
+const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, metaContentType='application/octet-stream') => {
   try {
     // Determine the destination path based on whether it's a sample or not
-    let filePath = isSample === "true" 
+    const filePath = isSample 
       ? `sample/${eventId}/${filename}` 
       : `uploads/${eventId}/${filename}`;
 
     // Get a reference to the Firebase Storage file
     const storageRef = firebaseStorage.file(filePath);
 
-    // Upload the buffer to Firebase Storage
+    // Upload the buffer to Firebase Storage with metadata
     await storageRef.save(fileBuffer, {
       metadata: {
-        // contentType: 'image/jpeg', // Set appropriate content type; modify based on your file type
-        cacheControl: 'public, max-age=31536000',
-        // contentType: 'video/mp4'
+        contentType: metaContentType, // Default to binary stream if type is not specified
+        cacheControl: 'public, max-age=31536000', // Set cache control headers
       },
+      resumable: false, // Avoid creating resumable uploads for small files
     });
 
-    // Make the file publicly accessible
+    // Ensure the file is publicly accessible
     await storageRef.makePublic();
 
-    // Get the public URL for the file
-    const publicURL = `https://storage.googleapis.com/${firebaseStorage.name}/${filePath}`;
+    // Get the public URL directly from Firebase
+    const [metadata] = await storageRef.getMetadata();
 
-    return publicURL; // Return the public URL
+    return metadata.mediaLink; // Return the public URL
   } catch (error) {
-    console.error("Error uploading file to Firebase:", error);
-    throw error;
+    console.error("Error uploading file to Firebase:", error.message || error);
+    throw new Error("File upload failed");
   }
 };
+
+// const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, metaContentType='application/octet-stream') => {
+//   try {
+//     // Determine the destination path based on whether it's a sample or not
+//     const filePath = isSample 
+//       ? `sample/${eventId}/${filename}` 
+//       : `uploads/${eventId}/${filename}`;
+
+//     // Get a reference to the Firebase Storage file
+//     const storageRef = firebaseStorage.file(filePath);
+
+//     console.log('eeeeeeeeeeee', filename, metaContentType);
+
+//     // Upload the buffer to Firebase Storage with metadata
+//     await storageRef.save(fileBuffer, {
+//       metadata: {
+//         contentType: metaContentType, // Default to binary stream if type is not specified
+//         cacheControl: 'public, max-age=31536000', // Set cache control headers
+//       },
+//       resumable: false, // Avoid creating resumable uploads for small files
+//     });
+
+//     // Generate a signed URL valid for 1 hour
+//     const [url] = await storageRef.getSignedUrl({
+//       action: 'read',
+//       expires: '03-09-2491', // Set the expiry date (here it's very long for demo purposes)
+//     });
+
+//     return url; // Return the signed URL
+//   } catch (error) {
+//     console.error("Error uploading file to Firebase:", error.message || error);
+//     throw new Error("File upload failed");
+//   }
+// };
 
 
 

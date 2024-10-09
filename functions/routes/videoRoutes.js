@@ -3,10 +3,9 @@ const fs = require("fs");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
-const { createCanvas, registerFont, deregisterAllFonts } = require("canvas");
 const { authenticateJWT } = require("../middleware/auth");
 const {
-  downloadGoogleFont,
+  createCanvasWithCenteredText,
   addOrUpdateGuests,
   uploadFileToFirebase,
 } = require("../utility/proccessing");
@@ -24,61 +23,8 @@ const router = express.Router();
 
 const UPLOAD_DIR = os.tmpdir() || path.join(__dirname, "../tmp");
 
-const createCanvasWithCenteredText = async (
-  val,
-  property,
-  scalingFont,
-  scalingH,
-  scalingW
-) => {
-  const fontPath = await downloadGoogleFont(property.fontFamily);
-  registerFont(fontPath, { family: property.fontFamily });
-
-  let tempTextName = property.text.replace(
-    /{(\w+)}/g,
-    (match, p1) => val[p1] || ""
-  );
-  let width = parseInt(property.size.width * scalingW);
-  let height = parseInt(property.size.height * scalingH);
-
-  width = width % 2 ? width + 1 : width;
-  height = height % 2 ? height + 1 : height;
-
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  if (property.backgroundColor !== "none") {
-    ctx.fillStyle = property.backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-  } else {
-    ctx.clearRect(0, 0, width, height); // Clear the canvas for transparency
-  }
-
-  ctx.fillStyle = property.fontColor;
-
-  let fontSize = property.fontSize * scalingFont;
-  ctx.font = `${fontSize}px ${property.fontFamily}`;
-
-  // Adjust font size to fit text within canvas width
-  while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
-    fontSize--;
-    ctx.font = `${fontSize}px ${property.fontFamily}`;
-  }
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const x = width / 2;
-  const y = height / 2;
-  ctx.fillText(tempTextName, x, y);
-
-  deregisterAllFonts();
-
-  return canvas.toDataURL();
-};
-
 const createVideoForGuest = (
-  fileName,
+  { metaContentType, metaFileExt },
   inputPath,
   texts,
   scalingFont,
@@ -98,7 +44,8 @@ const createVideoForGuest = (
           text,
           scalingFont,
           scalingH,
-          scalingW
+          scalingW,
+          "video"
         );
         return { ...text, stream };
       })
@@ -297,14 +244,48 @@ const createVideoForGuest = (
                 idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
             };
             break;
+          case "zoom_out":
+            const zoomOutConfig = [
+              {
+                filter: "zoompan",
+                options: {
+                  z: `if(lte(on,0),1, min(pzoom+0.01,2))`, // Incremental zoom (starts at 1 and gradually zooms in)
+                  d: text.transition.options.duration, // Duration of the effect (30 FPS)
+                  x: "(iw/2)-(iw/zoom/2)", // Keep the image horizontally centered
+                  y: "(ih/2)-(ih/zoom/2)", // Keep the image vertically centered
+                  s: `${parseInt(text.size.width * scalingW)}x${parseInt(
+                    text.size.height * scalingH
+                  )}`, // Define the scaling size
+                },
+                inputs: `[${idx + 1}:v]`,
+                outputs: `zoom_out_${idx + 1}`,
+              },
+              {
+                filter: "overlay",
+                options: {
+                  x: xPos,
+                  y: yPos,
+                  enable: `between(t,${parseInt(text.startTime)},${parseInt(
+                    text.duration
+                  )})`,
+                },
+                inputs:
+                  idx === 0
+                    ? "[0:v][zoom_out_1]"
+                    : `[tmp${idx}][zoom_out_${idx + 1}]`,
+                outputs:
+                  idx === streams.length - 1 ? "result" : `[tmp${idx + 1}]`,
+              },
+            ];
+            return zoomOutConfig;
+
           case "zoom_in":
-            console.log(text.transition);
             const zoomInConfig = [
               {
                 filter: "zoompan",
                 options: {
-                  z: `if(lte(on,0),0, min(pzoom+0.01,2))`, // Incremental zoom (starts at 1 and gradually zooms in)
-                  d: `1`, // Duration of the effect (30 FPS)
+                  z: `if(lte(on,0),2, max(pzoom-0.01,1))`, // Start zoomed in at 2x and gradually zoom out
+                  d: text.transition.options.duration, // Duration of the effect
                   x: "(iw/2)-(iw/zoom/2)", // Keep the image horizontally centered
                   y: "(ih/2)-(ih/zoom/2)", // Keep the image vertically centered
                   s: `${parseInt(text.size.width * scalingW)}x${parseInt(
@@ -332,6 +313,7 @@ const createVideoForGuest = (
               },
             ];
             return zoomInConfig;
+
           default:
             break;
         }
@@ -346,10 +328,8 @@ const createVideoForGuest = (
       .output(tempOutputPath)
       .on("end", async () => {
         try {
-          // fs.rmSync(tempOutputPath);
-
           const filename =
-            `${val?.name}_${val?.mobileNumber}_${fileName}`.replace(
+            `${val?.name}_${val?.mobileNumber}_processed${metaFileExt}`.replace(
               /\s+/g,
               "_"
             );
@@ -358,8 +338,13 @@ const createVideoForGuest = (
             fs.readFileSync(tempOutputPath),
             filename,
             eventId,
-            isSample
+            isSample,
+            metaContentType
           );
+
+          if (fs.existsSync(tempOutputPath)) {
+            fs.rmSync(tempOutputPath);
+          }
 
           val.link = url;
           resolve(url);
@@ -409,6 +394,13 @@ router.post("/", authenticateJWT, async (req, res) => {
 
     const [inputBuffer] = await storageRef.download(); // Get the file as a Buffer
 
+    const [metadata] = await storageRef.getMetadata();
+    const metaFileExt = metadata?.name?.replace(
+      `uploads/${eventId}/inputFile`,
+      ""
+    );
+    const metaContentType = metadata.contentType;
+
     inputPath = path.join(UPLOAD_DIR, `inputFile${Date.now()}.mp4`);
     fs.writeFileSync(inputPath, Buffer.from(inputBuffer));
 
@@ -449,7 +441,7 @@ router.post("/", authenticateJWT, async (req, res) => {
           await Promise.all(
             chunk.map(async (val, i) => {
               await createVideoForGuest(
-                fileName,
+                { metaContentType, metaFileExt },
                 inputPath,
                 textProperty,
                 scalingFont,
@@ -482,16 +474,69 @@ router.post("/", authenticateJWT, async (req, res) => {
         }
 
         res.end();
-      })();
+      })().then(() => {
+        if (fs.existsSync(inputPath)) {
+          fs.unlinkSync(inputPath);
+        }
+      });
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
     res.end();
-  } finally {
-    if (!fs.existsSync(inputPath)) {
-      fs.unlinkSync(inputPath);
-    }
   }
 });
 
 module.exports = router;
+
+// const createCanvasWithCenteredText = async (
+//   val,
+//   property,
+//   scalingFont,
+//   scalingH,
+//   scalingW
+// ) => {
+//   const fontPath = await downloadGoogleFont(property.fontFamily);
+//   registerFont(fontPath, { family: property.fontFamily });
+
+//   let tempTextName = property.text.replace(
+//     /{(\w+)}/g,
+//     (match, p1) => val[p1] || ""
+//   );
+//   let width = parseInt(property.size.width * scalingW);
+//   let height = parseInt(property.size.height * scalingH);
+
+//   width = width % 2 ? width + 1 : width;
+//   height = height % 2 ? height + 1 : height;
+
+//   const canvas = createCanvas(width, height);
+//   const ctx = canvas.getContext("2d");
+
+//   if (property.backgroundColor !== "none") {
+//     ctx.fillStyle = property.backgroundColor;
+//     ctx.fillRect(0, 0, width, height);
+//   } else {
+//     ctx.clearRect(0, 0, width, height); // Clear the canvas for transparency
+//   }
+
+//   ctx.fillStyle = property.fontColor;
+
+//   let fontSize = property.fontSize * scalingFont;
+//   ctx.font = `${fontSize}px ${property.fontFamily}`;
+
+//   // Adjust font size to fit text within canvas width
+//   while (ctx.measureText(tempTextName).width > width && fontSize > 1) {
+//     fontSize--;
+//     ctx.font = `${fontSize}px ${property.fontFamily}`;
+//   }
+
+//   ctx.textAlign = "center";
+//   ctx.textBaseline = "middle";
+
+//   const x = width / 2;
+//   const y = height / 2;
+//   ctx.fillText(tempTextName, x, y);
+
+//   deregisterAllFonts();
+
+//   return canvas.toDataURL();
+// };

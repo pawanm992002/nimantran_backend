@@ -10,13 +10,14 @@ const TextSchema = new mongoose.Schema({
   },
   texts: [
     {
-      id: Number,
+      id: String,
       duration: Number,
       fontColor: String,
       fontFamily: String,
       fontSize: Number,
       fontWeight: String,
       fontStyle: String,
+      backgroundOpacity: String,
       position: {
         x: Number,
         y: Number,

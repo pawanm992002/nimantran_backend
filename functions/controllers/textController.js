@@ -1,4 +1,3 @@
-const mongoose = require("mongoose");
 const { Text } = require("../models/Text");
 
 const saveText = async (req, res) => {
@@ -8,7 +7,7 @@ const saveText = async (req, res) => {
 
     if (!eventId) throw new Error("Event ID not found");
 
-    if (inputFile && texts && texts?.length !== 0) {
+    if (inputFile) {
       const savedStates = await Text.updateOne(
         { eventId },
         {

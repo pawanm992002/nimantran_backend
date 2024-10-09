@@ -15,7 +15,7 @@ const { Event } = require("../models/Event");
 const router = express.Router();
 
 const createPdfForGuest = async (
-  fileName,
+  { metaContentType, metaFileExt },
   inputPath,
   texts,
   scalingFont,
@@ -34,6 +34,7 @@ const createPdfForGuest = async (
           scalingFont,
           scalingH,
           scalingW,
+          'pdf', 
           5
         );
         return { ...text, stream };
@@ -55,7 +56,7 @@ const createPdfForGuest = async (
           y:
             page.getHeight() -
             text.position.y * scalingH -
-            text.size.height * scalingH,
+            text.size.height * scalingH+8,
           width: text.size.width * scalingW,
           height: text.size.height * scalingH,
           opacity: 1.0,
@@ -65,12 +66,19 @@ const createPdfForGuest = async (
 
     const buffer = await pdfDoc.save();
 
-    const filename = `${val?.name}_${val?.mobileNumber}_${fileName}`.replace(
-      /\s+/g,
-      "_"
-    );
+    const filename =
+      `${val?.name}_${val?.mobileNumber}_processed${metaFileExt}`.replace(
+        /\s+/g,
+        "_"
+      );
 
-    const url = await uploadFileToFirebase(buffer, filename, eventId, isSample);
+    const url = await uploadFileToFirebase(
+      buffer,
+      filename,
+      eventId,
+      isSample,
+      metaContentType
+    );
 
     val.link = url;
     return url;
@@ -81,7 +89,6 @@ const createPdfForGuest = async (
 
 router.post("/", authenticateJWT, async (req, res) => {
   try {
-    let inputPath;
     const {
       textProperty,
       scalingFont,
@@ -104,7 +111,13 @@ router.post("/", authenticateJWT, async (req, res) => {
 
     const storageRef = firebaseStorage.file(`uploads/${eventId}/${fileName}`);
 
-    [inputPath] = await storageRef.download(); // Get the file as a byte array
+    let [inputPath] = await storageRef.download(); // Get the file as a byte array
+    const [metadata] = await storageRef.getMetadata();
+    const metaFileExt = metadata?.name?.replace(
+      `uploads/${eventId}/inputFile`,
+      ""
+    );
+    const metaContentType = metadata.contentType;
 
     let amountSpend;
 
@@ -143,7 +156,7 @@ router.post("/", authenticateJWT, async (req, res) => {
           await Promise.all(
             chunk.map(async (val, i) => {
               await createPdfForGuest(
-                fileName,
+                { metaContentType, metaFileExt },
                 inputPath,
                 textProperty,
                 scalingFont,

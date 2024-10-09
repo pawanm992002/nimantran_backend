@@ -1,9 +1,5 @@
 const { Event } = require("../models/Event");
 const { invitationTracker } = require("../models/InvitationTracker");
-const venom = require("venom-bot");
-const chrome = require("chrome-aws-lambda"); // Include chrome-aws-lambda
-const os = require("os");
-const path = require("path");
 
 let clientInstance;
 
@@ -150,81 +146,81 @@ let clientInstance;
 // };
 
 const generateQR = async (req, res) => {
-  const { eventId } = req?.query;
-  const sessionName = `whatsapp-session`;
+  // const { eventId } = req?.query;
+  // const sessionName = `whatsapp-session`;
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+  // res.setHeader("Content-Type", "text/event-stream");
+  // res.setHeader("Cache-Control", "no-cache");
+  // res.setHeader("Connection", "keep-alive");
 
-  const browserArgs = [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-accelerated-2d-canvas",
-    "--no-first-run",
-    "--no-zygote",
-    "--disable-gpu",
-  ];
+  // const browserArgs = [
+  //   "--no-sandbox",
+  //   "--disable-setuid-sandbox",
+  //   "--disable-dev-shm-usage",
+  //   "--disable-accelerated-2d-canvas",
+  //   "--no-first-run",
+  //   "--no-zygote",
+  //   "--disable-gpu",
+  // ];
 
-  const sessionPath = path.join(os.tmpdir(), sessionName);
+  // const sessionPath = path.join(os.tmpdir(), sessionName);
 
-  try {
-    const executablePath = await chrome.executablePath;
+  // try {
+  //   const executablePath = await chrome.executablePath;
 
-    venom
-      .create(
-        sessionName,
-        (base64Qrimg) => {
-          res.write(`qrCode: ${base64Qrimg}\n\n`);
-          // res.flush();  // Flush the response to avoid timeout
-        },
-        (statusSession) => {
-          res.write(`status: ${statusSession}\n\n`);
-          // res.flush();  // Flush the response to avoid timeout
-        },
-        {
-          headless: chrome.headless, // Use chrome-aws-lambda's headless
-          logQR: false,
-          autoClose: 0,
-          session: sessionName,
-          multidevice: true,
-          mkdirFolderToken: sessionPath, // Save tokens in /tmp
-          createPathFileToken: true,
-          folderNameToken: sessionPath, // Important: session tokens must be stored in /tmp
-          browserArgs,
-          puppeteer: {
-            executablePath: executablePath || "/usr/bin/google-chrome", // Fallback if no chrome executable
-          },
-        }
-      )
-      .then((client) => {
-        res.write(`complete: clientScanned\n\n`);
-        // res.flush(); // Flush to prevent Firebase Function timeout
+  //   venom
+  //     .create(
+  //       sessionName,
+  //       (base64Qrimg) => {
+  //         res.write(`qrCode: ${base64Qrimg}\n\n`);
+  //         // res.flush();  // Flush the response to avoid timeout
+  //       },
+  //       (statusSession) => {
+  //         res.write(`status: ${statusSession}\n\n`);
+  //         // res.flush();  // Flush the response to avoid timeout
+  //       },
+  //       {
+  //         headless: chrome.headless, // Use chrome-aws-lambda's headless
+  //         logQR: false,
+  //         autoClose: 0,
+  //         session: sessionName,
+  //         multidevice: true,
+  //         mkdirFolderToken: sessionPath, // Save tokens in /tmp
+  //         createPathFileToken: true,
+  //         folderNameToken: sessionPath, // Important: session tokens must be stored in /tmp
+  //         browserArgs,
+  //         puppeteer: {
+  //           executablePath: executablePath || "/usr/bin/google-chrome", // Fallback if no chrome executable
+  //         },
+  //       }
+  //     )
+  //     .then((client) => {
+  //       res.write(`complete: clientScanned\n\n`);
+  //       // res.flush(); // Flush to prevent Firebase Function timeout
 
-        const number = "916367703375";
-        const message = "This is Invitation Message";
+  //       const number = "916367703375";
+  //       const message = "This is Invitation Message";
 
-        const formattedNumber = `${number}@c.us`;
+  //       const formattedNumber = `${number}@c.us`;
 
-        client
-          .sendText(formattedNumber, message)
-          .then((result) => {
-            res.write(`complete: Message sent\n\n`);
-            // res.flush();
-          })
-          .catch((error) => {
-            res.write(`error: ${error.message}\n\n`);
-            // res.flush();
-          });
-      })
-      .catch((err) => {
-        res.write(`error: ${err.message}\n\n`);
-        // res.flush();
-      });
-  } catch (error) {
-    res.status(400).send(`Error initializing QR generation: ${error.message}`);
-  }
+  //       client
+  //         .sendText(formattedNumber, message)
+  //         .then((result) => {
+  //           res.write(`complete: Message sent\n\n`);
+  //           // res.flush();
+  //         })
+  //         .catch((error) => {
+  //           res.write(`error: ${error.message}\n\n`);
+  //           // res.flush();
+  //         });
+  //     })
+  //     .catch((err) => {
+  //       res.write(`error: ${err.message}\n\n`);
+  //       // res.flush();
+  //     });
+  // } catch (error) {
+  //   res.status(400).send(`Error initializing QR generation: ${error.message}`);
+  // }
 };
 
 const individualWhatsuppPersonalInvite = (req, res) => {
@@ -237,19 +233,19 @@ const individualWhatsuppPersonalInvite = (req, res) => {
   //   return res.status(400).json({ error: "Client not initialized yet" });
   // }
 
-  const number = "916367703375";
+  // const number = "916367703375";
 
-  const formattedNumber = `${number}@c.us`; // Ensure proper number formatting for WhatsApp
+  // const formattedNumber = `${number}@c.us`; // Ensure proper number formatting for WhatsApp
 
-  clientInstance
-    .sendText(formattedNumber, message)
-    .then((result) => {
-      res.json({ success: true, result });
-    })
-    .catch((error) => {
-      console.error("Error sending message:", error);
-      res.status(400).json({ error: "Error sending message" });
-    });
+  // clientInstance
+  //   .sendText(formattedNumber, message)
+  //   .then((result) => {
+  //     res.json({ success: true, result });
+  //   })
+  //   .catch((error) => {
+  //     console.error("Error sending message:", error);
+  //     res.status(400).json({ error: "Error sending message" });
+  //   });
 };
 
 const bulkWhatsuppPersonalInvite = async (req, res) => {

@@ -15,7 +15,7 @@ const { Event } = require("../models/Event");
 const router = express.Router();
 
 const createImagesForGuest = async (
-  fileName,
+  { metaContentType, metaFileExt },
   inputPath,
   texts,
   scalingFont,
@@ -33,7 +33,8 @@ const createImagesForGuest = async (
           text,
           scalingFont,
           scalingH,
-          scalingW
+          scalingW,
+          "image"
         );
         return { ...text, stream };
       })
@@ -49,7 +50,7 @@ const createImagesForGuest = async (
         return {
           input: overlayImage,
           left: parseInt(position.x * scalingW),
-          top: parseInt(position.y * scalingH + 5),
+          top: parseInt(position.y * scalingH),
         };
       })
     );
@@ -58,16 +59,18 @@ const createImagesForGuest = async (
 
     const outputBuffer = await baseImage.toBuffer();
 
-    const filename = `${val?.name}_${val?.mobileNumber}_${fileName}`.replace(
-      /\s+/g,
-      "_"
-    );
+    const filename =
+      `${val?.name}_${val?.mobileNumber}_processed${metaFileExt}`.replace(
+        /\s+/g,
+        "_"
+      );
 
     const url = await uploadFileToFirebase(
       outputBuffer,
       filename,
       eventId,
-      isSample
+      isSample,
+      metaContentType
     );
 
     val.link = url;
@@ -78,7 +81,6 @@ const createImagesForGuest = async (
 };
 
 router.post("/", authenticateJWT, async (req, res) => {
-  let inputPath;
   try {
     const {
       textProperty,
@@ -103,7 +105,13 @@ router.post("/", authenticateJWT, async (req, res) => {
     // Access the file in Firebase Storage using firebase-admin
     const storageRef = firebaseStorage.file(`uploads/${eventId}/${fileName}`);
 
-    [inputPath] = await storageRef.download(); // Get the file as a Buffer
+    let [inputPath] = await storageRef.download(); // Get the file as a Buffer
+    const [metadata] = await storageRef.getMetadata();
+    const metaFileExt = metadata?.name?.replace(
+      `uploads/${eventId}/inputFile`,
+      ""
+    );
+    const metaContentType = metadata.contentType;
 
     let amountSpend;
 
@@ -137,7 +145,7 @@ router.post("/", authenticateJWT, async (req, res) => {
         await Promise.all(
           guestNames?.map(async (val) => {
             await createImagesForGuest(
-              fileName,
+              { metaContentType, metaFileExt },
               inputPath,
               textProperty,
               scalingFont,
