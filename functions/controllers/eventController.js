@@ -184,8 +184,7 @@ const getAllCustomerEvents = async (req, res) => {
       return res.status(404).json({
         message: "User not found",
       });
-    }
-    console.log(customer);        
+    }      
     res.status(200).json({
       data: customer[0].events,
       success: true,

@@ -16,7 +16,7 @@ if (!fs.existsSync(FONT_DIR)) {
 }
 
 const downloadGoogleFont = async (fontFamily) => {
-  const fontUrl = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(
+  const fontUrl = `https://fonts.googleapis.com/css2?family=${fontFamily?.replace(
     / /g,
     "+"
   )}`;
@@ -50,7 +50,7 @@ const addOrUpdateGuests = async (eventId, guests) => {
     if (!event) {
       throw new Error("Event not found");
     }
-    
+
     guests.forEach((guest) => {
       const existingGuestIndex = event.guests.findIndex(
         (g) => g.mobileNumber === guest.mobileNumber
@@ -68,7 +68,7 @@ const addOrUpdateGuests = async (eventId, guests) => {
         });
       }
     });
-    
+
     event.processingStatus = "completed";
 
     await event.save();
@@ -171,19 +171,20 @@ const addOrUpdateGuests = async (eventId, guests) => {
 //   }
 // };
 
-
 // Helper function to convert HEX to RGBA
 const hexToRGBA = (hex, opacity = 1) => {
   let c;
   if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-    c = hex.substring(1).split('');
+    c = hex.substring(1).split("");
     if (c.length === 3) {
       c = [c[0], c[0], c[1], c[1], c[2], c[2]];
     }
-    c = '0x' + c.join('');
-    return `rgba(${(c >> 16) & 255}, ${(c >> 8) & 255}, ${c & 255}, ${opacity})`;
+    c = "0x" + c.join("");
+    return `rgba(${(c >> 16) & 255}, ${(c >> 8) & 255}, ${
+      c & 255
+    }, ${opacity})`;
   }
-  throw new Error('Invalid HEX color');
+  throw new Error("Invalid HEX color");
 };
 
 const createCanvasWithCenteredText = async (
@@ -193,10 +194,38 @@ const createCanvasWithCenteredText = async (
   scalingH,
   scalingW,
   comp,
-  quality = 1,
+  quality = 1
 ) => {
   try {
-    console.log(property);
+    if (property?.id?.startsWith("image") && property?.link) {
+      const response = await axios.get(property.link, {
+        responseType: "arraybuffer",
+      });
+      const buffer = Buffer.from(response.data); // Convert arraybuffer to Buffer
+      // return buffer;
+
+      // Resize the image based on the given dimensions, preserving the aspect ratio and not cropping
+      const resizedBuffer = await sharp(buffer)
+        .resize(parseInt(property.size.width * scalingW), parseInt(property.size.height * scalingH), {
+          fit: "fill", // Ensure the image fits inside the dimensions without cropping
+        })
+        .toBuffer(); // Convert back to buffer
+
+      if (comp === "video") {
+        // Convert buffer to base64
+        const base64 = resizedBuffer.toString("base64");
+
+        // Derive the MIME type based on the file type (you may need to adjust this depending on the file type)
+        const mimeType = response.headers["content-type"]; // Assuming the content-type header contains this information
+
+        // Create Data URL
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+
+        return dataUrl;
+      } else {
+        return resizedBuffer;
+      }
+    }
     const fontPath = await downloadGoogleFont(property.fontFamily);
     let fontSize = parseInt(property.fontSize * scalingFont * quality);
 
@@ -255,24 +284,27 @@ const createCanvasWithCenteredText = async (
       ctx.stroke();
     }
 
-    if(comp === 'video') {
+    if (comp === "video") {
       return canvas.toDataURL();
     } else {
-      return await sharp(canvas.toBuffer("image/png"))
-        .sharpen()
-        .toBuffer();
+      return await sharp(canvas.toBuffer("image/png")).sharpen().toBuffer();
     }
-
   } catch (error) {
     throw error;
   }
 };
 
-const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, metaContentType='application/octet-stream') => {
+const uploadFileToFirebase = async (
+  fileBuffer,
+  filename,
+  eventId,
+  isSample,
+  metaContentType = "application/octet-stream"
+) => {
   try {
     // Determine the destination path based on whether it's a sample or not
-    const filePath = isSample 
-      ? `sample/${eventId}/${filename}` 
+    const filePath = isSample
+      ? `sample/${eventId}/${filename}`
       : `uploads/${eventId}/${filename}`;
 
     // Get a reference to the Firebase Storage file
@@ -282,7 +314,7 @@ const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, met
     await storageRef.save(fileBuffer, {
       metadata: {
         contentType: metaContentType, // Default to binary stream if type is not specified
-        cacheControl: 'public, max-age=31536000', // Set cache control headers
+        cacheControl: "public, max-age=31536000", // Set cache control headers
       },
       resumable: false, // Avoid creating resumable uploads for small files
     });
@@ -303,14 +335,12 @@ const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, met
 // const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, metaContentType='application/octet-stream') => {
 //   try {
 //     // Determine the destination path based on whether it's a sample or not
-//     const filePath = isSample 
-//       ? `sample/${eventId}/${filename}` 
+//     const filePath = isSample
+//       ? `sample/${eventId}/${filename}`
 //       : `uploads/${eventId}/${filename}`;
 
 //     // Get a reference to the Firebase Storage file
 //     const storageRef = firebaseStorage.file(filePath);
-
-//     console.log('eeeeeeeeeeee', filename, metaContentType);
 
 //     // Upload the buffer to Firebase Storage with metadata
 //     await storageRef.save(fileBuffer, {
@@ -333,8 +363,6 @@ const uploadFileToFirebase = async (fileBuffer, filename, eventId, isSample, met
 //     throw new Error("File upload failed");
 //   }
 // };
-
-
 
 module.exports = {
   downloadGoogleFont,

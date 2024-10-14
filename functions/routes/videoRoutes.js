@@ -387,8 +387,10 @@ router.post("/", authenticateJWT, async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) throw new Error("Event not found");
 
-    event.processingStatus = "processing";
-    await event.save();
+    if(!isSample) {
+      event.processingStatus = "processing";
+      await event.save();
+    }
 
     const storageRef = firebaseStorage.file(`uploads/${eventId}/${fileName}`);
 

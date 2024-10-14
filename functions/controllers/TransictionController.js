@@ -4,7 +4,6 @@ const { User } = require("../models/User");
 const getAllCustomerTransactions = async (req, res) => {
   try {
     const { customerId } = req.query;
-     console.log(customerId)
     if (!customerId) {
       return res.status(400).json({ message: "Customer ID is required" });
     }
@@ -91,7 +90,6 @@ const getClientTransaction = async (req, res) => {
 
     const result = Array.from(uniqueTransactions.values());
     const getClientCredits = await User.findById(_id).select("credits -_id");
-    console.log(getClientCredits);
     if (!getClientCredits) {
       return res.status(400).json({ message: "Client Credits not Found" });
     }

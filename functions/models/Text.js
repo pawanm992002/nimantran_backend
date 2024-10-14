@@ -36,6 +36,7 @@ const TextSchema = new mongoose.Schema({
         type: Object,
         default: null,
       },
+      link: String
     },
   ],
 });

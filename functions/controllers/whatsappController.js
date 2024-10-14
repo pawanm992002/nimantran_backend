@@ -227,8 +227,6 @@ const individualWhatsuppPersonalInvite = (req, res) => {
   // const { number } = req.body;
   const message = "hii this is my message";
 
-  console.log(".................", clientInstance);
-
   // if (!clientInstance) {
   //   return res.status(400).json({ error: "Client not initialized yet" });
   // }
